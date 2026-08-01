@@ -6,6 +6,7 @@ const MAIN_HOSTS = new Set([
   "commercecraft.app",
   "www.commercecraft.app",
   "proxy.commercecraft.app",
+  "commerce-craft-six.vercel.app",
 ]);
 
 const PROTECTED_PREFIXES = [
