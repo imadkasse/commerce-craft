@@ -1,26 +1,91 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-line: var(--line);
+  --color-forest: var(--forest);
+  --color-forest-soft: var(--forest-soft);
+  --color-clay: var(--clay);
+  --color-clay-strong: var(--clay-strong);
+  --color-clay-soft: var(--clay-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+
+  --color-gray-50: oklch(0.975 0.006 78);
+  --color-gray-100: oklch(0.955 0.008 76);
+  --color-gray-200: oklch(0.92 0.009 74);
+  --color-gray-300: oklch(0.87 0.01 72);
+  --color-gray-400: oklch(0.78 0.012 70);
+  --color-gray-500: oklch(0.62 0.014 68);
+  --color-gray-600: oklch(0.5 0.015 65);
+  --color-gray-700: oklch(0.42 0.016 62);
+  --color-gray-800: oklch(0.36 0.018 60);
+  --color-gray-900: oklch(0.3 0.02 58);
+  --color-gray-950: oklch(0.24 0.022 55);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --paper: oklch(0.972 0.006 75);        /* warm cream page background */
+  --surface: oklch(0.997 0.003 75);      /* warm near-white card surface */
+  --ink: oklch(0.26 0.022 55);           /* espresso text */
+  --muted: oklch(0.52 0.02 60);          /* secondary text */
+  --accent: oklch(0.52 0.155 32);        /* rust / vermilion */
+  --accent-strong: oklch(0.45 0.15 30);
+  --accent-soft: oklch(0.94 0.028 38);   /* rust tint for backgrounds/pills */
+  --line: oklch(0.9 0.012 70);           /* hairline borders */
+  --forest: oklch(0.55 0.09 155);        /* success / published */
+  --forest-soft: oklch(0.94 0.02 150);
+  --clay: oklch(0.55 0.17 28);           /* destructive / danger */
+  --clay-strong: oklch(0.47 0.16 28);
+  --clay-soft: oklch(0.94 0.025 30);
+  --amber: oklch(0.6 0.12 75);           /* draft */
+  --amber-soft: oklch(0.94 0.04 80);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background-color: var(--accent-soft);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-in {
+  animation: panel-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-in {
+    animation: none;
+  }
 }
