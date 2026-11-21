@@ -7,22 +7,13 @@ import { Check, ChevronDown, Loader2, Store } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { storesService, type Store as StoreRecord } from "@/services/stores.service";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-
-interface Store {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-interface StoresResponse {
-  stores: Store[];
-}
 
 // The project's custom DropdownMenu delivers its content through an injected
 // `__dropdownContent` prop carried by one of the trigger's children. This
@@ -36,7 +27,7 @@ export function StoreSwitcher() {
   const switchStore = useAuthStore((s) => s.switchStore);
   const activeStore = useAuthStore((s) => s.store);
 
-  const [stores, setStores] = React.useState<Store[]>([]);
+  const [stores, setStores] = React.useState<StoreRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [switchingId, setSwitchingId] = React.useState<string | null>(null);
 
@@ -44,10 +35,8 @@ export function StoreSwitcher() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/stores");
-        if (!res.ok) throw new Error("Failed to fetch stores");
-        const data: StoresResponse = await res.json();
-        if (!cancelled) setStores(data.stores);
+        const data = await storesService.list();
+        if (!cancelled) setStores(data);
       } catch {
         if (!cancelled) toast.error("Failed to load stores");
       } finally {

@@ -10,48 +10,15 @@ import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, ArrowLeft, Plus, Trash2, Truck } from "lucide-react";
-
-interface ProviderSetting {
-  apiKey: string;
-  apiSecret: string;
-  enabled: boolean;
-}
-
-interface ShippingRate {
-  id: string;
-  name: string;
-  price: number;
-  minWeight: number | null;
-  maxWeight: number | null;
-}
-
-interface ShippingConfig {
-  defaultProvider: string;
-  providers: Record<string, ProviderSetting>;
-  rates: ShippingRate[];
-}
-
-const defaultProviders: Record<string, ProviderSetting> = {
-  zr_express: { apiKey: "", apiSecret: "", enabled: false },
-  yalidin: { apiKey: "", apiSecret: "", enabled: false },
-  noest: { apiKey: "", apiSecret: "", enabled: false },
-};
-
-const providerKeys = ["zr_express", "yalidin", "noest"] as const;
-
-const providerNames: Record<string, string> = {
-  zr_express: "ZR Express",
-  yalidin: "Yalidin",
-  noest: "NOEST Express",
-};
-
-const defaultConfig: ShippingConfig = {
-  defaultProvider: "zr_express",
-  providers: { ...defaultProviders },
-  rates: [{ id: "1", name: "Standard", price: 0, minWeight: null, maxWeight: null }],
-};
-
-let rateIdCounter = 1;
+import {
+  defaultConfig,
+  providerKeys,
+  providerNames,
+  shippingService,
+  type ProviderSetting,
+  type ShippingConfig,
+  type ShippingRate,
+} from "@/services/shipping.service";
 
 export default function ShippingPage() {
   const [config, setConfig] = useState<ShippingConfig>(defaultConfig);
@@ -61,11 +28,8 @@ export default function ShippingPage() {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const res = await fetch("/api/shipping/config");
-      if (res.ok) {
-        const data = await res.json();
-        setConfig(data.config ?? data);
-      }
+      const data = await shippingService.getConfig();
+      setConfig(data.config ?? (data as unknown as ShippingConfig));
     } catch {
       setMessage({ type: "error", text: "Failed to load shipping config." });
     } finally {
@@ -78,36 +42,19 @@ export default function ShippingPage() {
   }, [fetchConfig]);
 
   const updateProvider = (key: string, field: keyof ProviderSetting, value: string | boolean) => {
-    setConfig((prev) => ({
-      ...prev,
-      providers: {
-        ...prev.providers,
-        [key]: { ...prev.providers[key], [field]: value },
-      },
-    }));
+    setConfig((prev) => shippingService.updateProvider(prev, key, field, value));
   };
 
   const addRate = () => {
-    rateIdCounter += 1;
-    const newRate: ShippingRate = {
-      id: String(rateIdCounter),
-      name: "",
-      price: 0,
-      minWeight: null,
-      maxWeight: null,
-    };
-    setConfig((prev) => ({ ...prev, rates: [...prev.rates, newRate] }));
+    setConfig((prev) => shippingService.addRate(prev));
   };
 
   const removeRate = (id: string) => {
-    setConfig((prev) => ({ ...prev, rates: prev.rates.filter((r) => r.id !== id) }));
+    setConfig((prev) => shippingService.removeRate(prev, id));
   };
 
   const updateRate = (id: string, field: keyof ShippingRate, value: string | number | null) => {
-    setConfig((prev) => ({
-      ...prev,
-      rates: prev.rates.map((r) => (r.id === id ? { ...r, [field]: value } : r)),
-    }));
+    setConfig((prev) => shippingService.updateRate(prev, id, field, value));
   };
 
   const hasAnyKeys = Object.values(config.providers).some((p) => p.apiKey || p.apiSecret);
@@ -116,15 +63,7 @@ export default function ShippingPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/shipping/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save");
-      }
+      await shippingService.saveConfig(config);
       setMessage({ type: "success", text: "Shipping settings saved successfully." });
     } catch (e) {
       setMessage({ type: "error", text: e instanceof Error ? e.message : "Save failed." });

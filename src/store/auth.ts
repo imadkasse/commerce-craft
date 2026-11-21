@@ -1,20 +1,12 @@
 "use client";
 
 import { create } from "zustand";
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: "SUPERADMIN" | "ADMIN";
-  avatarUrl?: string;
-}
-
-interface StoreInfo {
-  id: string;
-  name: string;
-  slug: string;
-}
+import {
+  authService,
+  toAuthError,
+  type StoreInfo,
+  type User,
+} from "@/services/auth.service";
 
 interface AuthState {
   user: User | null;
@@ -39,39 +31,27 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (email, password) => {
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) return { error: data.error || "Login failed" };
-      set({ user: data.user, store: data.store || null });
+      const { user, store } = await authService.login(email, password);
+      set({ user, store: store || null });
       return {};
-    } catch {
-      return { error: "Network error" };
+    } catch (error) {
+      return toAuthError(error, "Login failed");
     }
   },
 
   register: async (name, email, password) => {
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) return { error: data.error || "Registration failed" };
-      set({ user: data.user, store: data.store || null });
+      const { user, store } = await authService.register(name, email, password);
+      set({ user, store: store || null });
       return {};
-    } catch {
-      return { error: "Network error" };
+    } catch (error) {
+      return toAuthError(error, "Registration failed");
     }
   },
 
   logout: async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await authService.logout();
     } finally {
       set({ user: null, store: null });
       window.location.href = "/login";
@@ -81,13 +61,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   fetchUser: async () => {
     try {
       set({ isLoading: true });
-      const res = await fetch("/api/auth/me");
-      if (!res.ok) {
-        set({ user: null, store: null, isLoading: false });
-        return;
-      }
-      const data = await res.json();
-      set({ user: data.user, store: data.store || null, isLoading: false });
+      const { user, store } = await authService.me();
+      set({ user, store: store || null, isLoading: false });
     } catch {
       set({ user: null, store: null, isLoading: false });
     }
@@ -95,17 +70,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   switchStore: async (storeId) => {
     try {
-      const res = await fetch("/api/auth/switch-store", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeId }),
-      });
-      const data = await res.json();
-      if (!res.ok) return { error: data.error || "Failed to switch store" };
-      set({ user: data.user, store: data.store || null });
+      const { user, store } = await authService.switchStore(storeId);
+      set({ user, store: store || null });
       return {};
-    } catch {
-      return { error: "Network error" };
+    } catch (error) {
+      return toAuthError(error, "Failed to switch store");
     }
   },
 }));

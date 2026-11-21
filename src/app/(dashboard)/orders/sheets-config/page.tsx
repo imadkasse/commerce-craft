@@ -11,71 +11,16 @@ import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Save, TestTube, Upload, CheckCircle, XCircle, AlertCircle, Table, Plus, Trash2, RefreshCw } from "lucide-react";
-
-interface SheetsConfig {
-  id: string;
-  storeId: string;
-  spreadsheetId: string;
-  sheetName: string;
-  fieldMapping: Record<string, string>;
-  autoSync: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface FieldMappingEntry {
-  id: string;
-  header: string;
-  field: string;
-}
-
-const orderFields = [
-  { value: "orderNumber", label: "Order Number" },
-  { value: "customerName", label: "Customer Name" },
-  { value: "customerPhone", label: "Phone" },
-  { value: "customerAddress", label: "Address" },
-  { value: "customerCity", label: "City" },
-  { value: "items[0].productName", label: "Product Name" },
-  { value: "items[0].quantity", label: "Quantity" },
-  { value: "total", label: "Total" },
-  { value: "status", label: "Status" },
-  { value: "trackingCode", label: "Tracking Code" },
-  { value: "shippingProvider", label: "Shipping Provider" },
-  { value: "notes", label: "Notes" },
-  { value: "createdAt", label: "Date" },
-];
-
-const defaultMapping: Record<string, string> = {
-  "Order Number": "orderNumber",
-  "Customer Name": "customerName",
-  "Phone": "customerPhone",
-  "Address": "customerAddress",
-  "City": "customerCity",
-  "Product": "items[0].productName",
-  "Quantity": "items[0].quantity",
-  "Total": "total",
-  "Status": "status",
-  "Tracking Code": "trackingCode",
-  "Date": "createdAt",
-};
-
-function mappingToEntries(mapping: Record<string, string>): FieldMappingEntry[] {
-  return Object.entries(mapping).map(([header, field], index) => ({
-    id: "map-" + index,
-    header,
-    field,
-  }));
-}
-
-function entriesToMapping(entries: FieldMappingEntry[]): Record<string, string> {
-  const mapping: Record<string, string> = {};
-  for (const entry of entries) {
-    if (entry.header.trim()) {
-      mapping[entry.header.trim()] = entry.field;
-    }
-  }
-  return mapping;
-}
+import {
+  sheetsService,
+  mappingToEntries,
+  entriesToMapping,
+  resolveMapping,
+  countSyncMessage,
+  orderFields,
+  defaultMapping,
+  type FieldMappingEntry,
+} from "@/services/sheets.service";
 
 function MiniSyncIndicator({
   configured,
@@ -135,23 +80,14 @@ export default function SheetsConfigPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/sheets/config");
-      if (!res.ok) throw new Error("Failed to load config");
-      const data = await res.json();
-      const config: SheetsConfig | null = data.config;
+      const { config } = await sheetsService.getConfig();
 
       if (config) {
         setSpreadsheetId(config.spreadsheetId);
         setSheetName(config.sheetName);
         setAutoSync(config.autoSync);
 
-        const mapping =
-          config.fieldMapping &&
-          typeof config.fieldMapping === "object" &&
-          Object.keys(config.fieldMapping).length > 0
-            ? config.fieldMapping
-            : defaultMapping;
-        setMappings(mappingToEntries(mapping));
+        setMappings(mappingToEntries(resolveMapping(config.fieldMapping)));
 
         const configMode = config.spreadsheetId ? "live" : "demo";
         setMode(configMode);
@@ -201,21 +137,12 @@ export default function SheetsConfigPage() {
     setMessage(null);
     try {
       const mapping = entriesToMapping(mappings);
-      const res = await fetch("/api/sheets/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          spreadsheetId: spreadsheetId.trim(),
-          sheetName: sheetName.trim(),
-          fieldMapping: mapping,
-          autoSync,
-        }),
+      const data = await sheetsService.saveConfig({
+        spreadsheetId: spreadsheetId.trim(),
+        sheetName: sheetName.trim(),
+        fieldMapping: mapping,
+        autoSync,
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to save configuration");
-      }
 
       setMode("live");
       if (data.warning) {
@@ -246,21 +173,12 @@ export default function SheetsConfigPage() {
     setMessage(null);
     try {
       const mapping = entriesToMapping(mappings);
-      const res = await fetch("/api/sheets/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          spreadsheetId: spreadsheetId.trim(),
-          sheetName: sheetName.trim(),
-          fieldMapping: mapping,
-          autoSync,
-        }),
+      const data = await sheetsService.testConnection({
+        spreadsheetId: spreadsheetId.trim(),
+        sheetName: sheetName.trim(),
+        fieldMapping: mapping,
+        autoSync,
       });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Connection test failed");
-      }
 
       if (data.warning) {
         setMessage({
@@ -284,14 +202,10 @@ export default function SheetsConfigPage() {
     setSyncing(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/sheets/sync", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Sync failed");
-      }
+      const data = await sheetsService.syncNow();
       setMessage({
         type: "success",
-        text: `Sync complete. ${data.count} order${data.count !== 1 ? "s" : ""} exported.`,
+        text: countSyncMessage(data.count),
       });
     } catch (err) {
       setMessage({

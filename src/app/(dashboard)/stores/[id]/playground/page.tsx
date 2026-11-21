@@ -18,21 +18,13 @@ import {
   type StorefrontProduct,
 } from "@/components/storefront/storefront-html";
 import { cn } from "@/lib/utils";
+import {
+  storesService,
+  getLoadStoreErrorMessage,
+  getStoreErrorMessage,
+  type Store,
+} from "@/services/stores.service";
 import { ArrowLeft, ExternalLink, Loader2, Save } from "lucide-react";
-
-interface Store {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  logoUrl: string | null;
-  domain: string | null;
-  theme: Partial<StoreTheme> | null;
-  status: "draft" | "published";
-  ownerId: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 const SAMPLE_PRODUCTS: StorefrontProduct[] = [
   {
@@ -129,21 +121,15 @@ export default function StorePlaygroundPage() {
     let cancelled = false;
     setLoading(true);
     setError("");
-    fetch(`/api/stores/${id}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `Failed to load store (${res.status})`);
-        }
-        return res.json();
-      })
-      .then((data) => {
+    storesService
+      .get(id)
+      .then((loaded) => {
         if (cancelled) return;
-        setStore(data.store);
-        setTheme(normalizeTheme(data.store.theme));
+        setStore(loaded);
+        setTheme(normalizeTheme(loaded.theme));
       })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
+      .catch((err: unknown) => {
+        if (!cancelled) setError(getLoadStoreErrorMessage(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -175,20 +161,13 @@ export default function StorePlaygroundPage() {
     if (!store) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/stores/${store.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: normalizeTheme(theme) }),
+      const updated = await storesService.update(store.id, {
+        theme: normalizeTheme(theme),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to save theme");
-      }
-      const data = await res.json();
-      setStore(data.store);
+      setStore(updated);
       toast.success("Theme saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save theme");
+      toast.error(getStoreErrorMessage(err, "Failed to save theme"));
     } finally {
       setSaving(false);
     }
@@ -199,22 +178,15 @@ export default function StorePlaygroundPage() {
     const newStatus = store.status === "published" ? "draft" : "published";
     setPublishing(true);
     try {
-      const res = await fetch(`/api/stores/${store.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+      const updated = await storesService.update(store.id, {
+        status: newStatus,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to update status");
-      }
-      const data = await res.json();
-      setStore(data.store);
+      setStore(updated);
       toast.success(
         newStatus === "published" ? "Store published!" : "Store unpublished."
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status");
+      toast.error(getStoreErrorMessage(err, "Failed to update status"));
     } finally {
       setPublishing(false);
     }

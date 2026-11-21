@@ -5,70 +5,20 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "@/components/products/product-form";
+import { productsService } from "@/services/products.service";
+import type {
+  ColorWithSizes,
+  ProductPayload,
+} from "@/services/products.service";
 
 export default function NewProductPage() {
   const router = useRouter();
 
   const handleSubmit = async (data: {
-    product: {
-      name: string;
-      description: string;
-      type: "CLOTHING" | "GENERAL" | "";
-      price: number;
-      compareAtPrice?: number;
-      images: string[];
-      tags: string[];
-      stockQuantity: number;
-      isActive: boolean;
-    };
-    colors: {
-      name: string;
-      hexCode: string;
-      stockQuantity: number;
-      sizes: { sizeLabel: string; stockQuantity: number }[];
-    }[];
+    product: ProductPayload;
+    colors: ColorWithSizes[];
   }) => {
-    const res = await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data.product),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.error || "Failed to create product");
-    }
-
-    const { product } = await res.json();
-
-    if (data.product.type === "CLOTHING" && data.colors.length > 0) {
-      for (const color of data.colors) {
-        const colorRes = await fetch(`/api/products/${product.id}/colors`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: color.name,
-            hexCode: color.hexCode,
-            stockQuantity: color.stockQuantity,
-          }),
-        });
-
-        if (colorRes.ok && color.sizes.length > 0) {
-          const { color: createdColor } = await colorRes.json();
-          for (const size of color.sizes) {
-            await fetch(`/api/products/${product.id}/sizes`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                colorId: createdColor.id,
-                sizeLabel: size.sizeLabel,
-                stockQuantity: size.stockQuantity,
-              }),
-            });
-          }
-        }
-      }
-    }
+    await productsService.createProductWithVariants(data);
 
     router.push("/products");
   };

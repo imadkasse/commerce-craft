@@ -22,25 +22,7 @@ import {
   XCircle,
   Filter,
 } from "lucide-react";
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  customerPhone: string;
-  status: string;
-  total: string;
-  createdAt: string;
-}
-
-interface Stats {
-  total: number;
-  pending: number;
-  confirmed: number;
-  shipped: number;
-  delivered: number;
-  cancelled: number;
-}
+import { ordersService, type Order, type OrderStats } from "@/services/orders.service";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -79,7 +61,7 @@ export default function OrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<Stats>({
+  const [stats, setStats] = useState<OrderStats>({
     total: 0,
     pending: 0,
     confirmed: 0,
@@ -91,17 +73,14 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
-      if (search) params.set("search", search);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      params.set("page", String(page));
-      params.set("limit", String(limit));
-
-      const res = await fetch(`/api/orders?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch orders");
-      const data = await res.json();
+      const data = await ordersService.list({
+        status: statusFilter,
+        search,
+        dateFrom,
+        dateTo,
+        page,
+        limit,
+      });
       setOrders(data.orders || []);
       setTotal(data.total || 0);
     } catch {
@@ -118,22 +97,7 @@ export default function OrdersPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const statuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"];
-        const [allRes, ...statusRes] = await Promise.all([
-          fetch("/api/orders?limit=1"),
-          ...statuses.map((s) => fetch(`/api/orders?status=${s}&limit=1`)),
-        ]);
-        const allData = await allRes.json();
-        const statusData = await Promise.all(statusRes.map((r) => r.json()));
-
-        setStats({
-          total: allData.total || 0,
-          pending: statusData[0]?.total || 0,
-          confirmed: statusData[1]?.total || 0,
-          shipped: statusData[2]?.total || 0,
-          delivered: statusData[3]?.total || 0,
-          cancelled: statusData[4]?.total || 0,
-        });
+        setStats(await ordersService.getStats());
       } catch {
         console.error("Failed to fetch stats");
       }

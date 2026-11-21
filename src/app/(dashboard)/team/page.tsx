@@ -8,16 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface TeamMember {
-  id: string;
-  role: string;
-  createdAt: string;
-  userId: string;
-  userName: string;
-  userEmail: string;
-  userAvatar?: string;
-}
+import {
+  teamService,
+  getTeamErrorMessage,
+  type TeamMember,
+} from "@/services/team.service";
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -32,11 +27,7 @@ export default function TeamPage() {
 
   const fetchMembers = async () => {
     try {
-      const res = await fetch("/api/team");
-      if (res.ok) {
-        const data = await res.json();
-        setMembers(data.members || []);
-      }
+      setMembers(await teamService.list());
     } catch (err) {
       console.error("Failed to fetch team members:", err);
     } finally {
@@ -54,23 +45,18 @@ export default function TeamPage() {
     setInviteLoading(true);
 
     try {
-      const res = await fetch("/api/team", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, name: inviteName, role: inviteRole }),
+      const member = await teamService.invite({
+        email: inviteEmail,
+        name: inviteName,
+        role: inviteRole,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setInviteError(data.error || "Failed to invite member");
-        return;
-      }
-      setMembers((prev) => [...prev, data.member]);
+      setMembers((prev) => [...prev, member]);
       setShowInvite(false);
       setInviteName("");
       setInviteEmail("");
       setInviteRole("ADMIN");
-    } catch {
-      setInviteError("Network error");
+    } catch (err) {
+      setInviteError(getTeamErrorMessage(err, "Failed to invite member"));
     } finally {
       setInviteLoading(false);
     }
@@ -81,7 +67,7 @@ export default function TeamPage() {
     setActionLoading(memberId);
     // Note: DELETE endpoint would need to be created
     // For now, just remove from local state
-    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    setMembers((prev) => teamService.removeLocal(prev, memberId));
     setActionLoading(null);
   };
 

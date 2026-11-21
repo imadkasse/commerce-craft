@@ -8,6 +8,23 @@ import { Card } from "@/components/ui/card";
 import { Check, Truck, Package, Loader2, Home, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WILAYA_DATA } from "@/lib/data";
+import {
+  computeTotals,
+  getAvailableSizes,
+  submitCheckout,
+  validateCheckout,
+  type CheckoutValidationMessages,
+} from "@/services/checkout.service";
+
+const CHECKOUT_MESSAGES: CheckoutValidationMessages = {
+  required: "يرجى ملء جميع الحقول الإلزامية.",
+  wilaya: "يرجى اختيار الولاية.",
+  daira: "يرجى اختيار البلدية.",
+  productUnavailable: "المنتج غير متوفر.",
+  color: "يرجى اختيار لون.",
+  size: "يرجى اختيار مقاس.",
+  outOfStock: "هذا المقاس غير متوفر.",
+};
 
 interface OrderFormProps {
   product: {
@@ -44,7 +61,7 @@ export function OrderForm({
   const [success, setSuccess] = useState<{ orderNumber: string } | null>(null);
 
   const availableSizes = useMemo(
-    () => (selectedColorId ? sizes.filter((s) => s.colorId === selectedColorId) : []),
+    () => getAvailableSizes(selectedColorId, sizes),
     [selectedColorId, sizes]
   );
 
@@ -54,10 +71,11 @@ export function OrderForm({
     return wilaya ? wilaya.dairas : [];
   }, [selectedWilayaCode]);
 
-  const shippingCost = deliveryOption === "home" ? 500 : 0;
-  const unitPrice = product ? Number(product.price) : 0;
-  const subtotal = unitPrice * quantity;
-  const total = subtotal + shippingCost;
+  const { subtotal, shippingCost, total } = computeTotals({
+    unitPrice: product ? Number(product.price) : 0,
+    quantity,
+    deliveryOption,
+  });
   const selectedColorName = colors.find((c) => c.id === selectedColorId)?.name;
   const selectedWilayaName = selectedWilayaCode !== ""
     ? WILAYA_DATA.find((w) => w.code === selectedWilayaCode)?.name
@@ -69,49 +87,34 @@ export function OrderForm({
     e.preventDefault();
     setError("");
 
-    if (!customerName || !customerPhone || !customerAddress) {
-      setError("يرجى ملء جميع الحقول الإلزامية.");
+    const validationError = validateCheckout(
+      {
+        customerName,
+        customerPhone,
+        customerAddress,
+        product,
+        wilaya: selectedWilayaCode,
+        daira: selectedDaira,
+        colorId: selectedColorId,
+        sizeId: selectedSizeId,
+        sizes,
+      },
+      CHECKOUT_MESSAGES
+    );
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
-    if (selectedWilayaCode === "") {
-      setError("يرجى اختيار الولاية.");
-      return;
-    }
-
-    if (!selectedDaira) {
-      setError("يرجى اختيار البلدية.");
-      return;
-    }
-
-    if (!product) {
-      setError("المنتج غير متوفر.");
-      return;
-    }
-
-    if (product.type === "CLOTHING") {
-      if (!selectedColorId) {
-        setError("يرجى اختيار لون.");
-        return;
-      }
-      if (!selectedSizeId) {
-        setError("يرجى اختيار مقاس.");
-        return;
-      }
-      const sizeObj = sizes.find((s) => s.id === selectedSizeId);
-      if (sizeObj && sizeObj.stockQuantity === 0) {
-        setError("هذا المقاس غير متوفر.");
-        return;
-      }
-    }
+    // validateCheckout already rejects a missing product; narrows for TS.
+    if (!product) return;
 
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/orders/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await submitCheckout(
+        {
           slug: landingPageSlug,
           productId: product.id,
           quantity,
@@ -122,15 +125,10 @@ export function OrderForm({
           customerAddress,
           customerCity: selectedWilayaName,
           customerCommune: selectedDaira,
-        }),
-      });
+        },
+        "حدث خطأ أثناء تقديم الطلب."
+      );
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error || "حدث خطأ أثناء تقديم الطلب.");
-      }
-
-      const data = await res.json();
       setSuccess({ orderNumber: data.order.orderNumber });
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ غير متوقع.");

@@ -20,44 +20,26 @@ import {
   Loader2,
   ImageIcon,
 } from "lucide-react";
-
-interface ProductColor {
-  id?: string;
-  name: string;
-  hexCode: string;
-  stockQuantity: number;
-  sizes: ProductSize[];
-}
-
-interface ProductSize {
-  id?: string;
-  sizeLabel: string;
-  stockQuantity: number;
-}
-
-interface ProductFormData {
-  id?: string;
-  name: string;
-  description: string;
-  type: "CLOTHING" | "GENERAL" | "";
-  price: string;
-  compareAtPrice: string;
-  images: string[];
-  tags: string[];
-  stockQuantity: number;
-  isActive: boolean;
-}
+import {
+  toProductPayload,
+  totalClothingStock,
+  validateProductForm,
+} from "@/services/products.service";
+import type {
+  ColorWithSizes,
+  ProductColor,
+  ProductFormValues,
+  ProductPayload,
+  ProductSize,
+} from "@/services/products.service";
 
 interface ProductFormProps {
-  initialProduct?: Partial<ProductFormData>;
-  initialColors?: ProductColor[];
+  initialProduct?: Partial<ProductFormValues>;
+  initialColors?: ColorWithSizes[];
   initialSizes?: { colorId: string; sizeLabel: string; stockQuantity: number }[];
   onSubmit: (data: {
-    product: Omit<ProductFormData, "price" | "compareAtPrice"> & {
-      price: number;
-      compareAtPrice?: number;
-    };
-    colors: ProductColor[];
+    product: ProductPayload;
+    colors: ColorWithSizes[];
   }) => Promise<void>;
   isEditing?: boolean;
 }
@@ -74,7 +56,7 @@ export function ProductForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState<ProductFormData>({
+  const [form, setForm] = useState<ProductFormValues>({
     name: initialProduct?.name || "",
     description: initialProduct?.description || "",
     type: initialProduct?.type || "",
@@ -86,7 +68,7 @@ export function ProductForm({
     isActive: initialProduct?.isActive ?? true,
   });
 
-  const [colors, setColors] = useState<ProductColor[]>(
+  const [colors, setColors] = useState<ColorWithSizes[]>(
     initialColors || []
   );
 
@@ -94,7 +76,7 @@ export function ProductForm({
   const [imageUrlInput, setImageUrlInput] = useState("");
 
   const updateForm = useCallback(
-    (field: keyof ProductFormData, value: unknown) => {
+    (field: keyof ProductFormValues, value: unknown) => {
       setForm((prev) => ({ ...prev, [field]: value }));
     },
     []
@@ -193,37 +175,18 @@ export function ProductForm({
     );
   };
 
-  const totalClothingStock = colors.reduce((sum, c) => {
-    if (c.sizes.length > 0) {
-      return sum + c.sizes.reduce((s, sz) => s + sz.stockQuantity, 0);
-    }
-    return sum + c.stockQuantity;
-  }, 0);
+  const totalStock = totalClothingStock(colors);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!form.name.trim()) return setError("Product name is required");
-    if (!form.type) return setError("Product type is required");
-    if (!form.price || parseFloat(form.price) < 0)
-      return setError("Valid price is required");
-
-    if (form.type === "CLOTHING" && colors.length === 0) {
-      return setError("Add at least one color for clothing products");
-    }
+    const validationError = validateProductForm(form, colors);
+    if (validationError) return setError(validationError);
 
     setLoading(true);
     try {
-      const productData = {
-        ...form,
-        price: parseFloat(form.price),
-        compareAtPrice: form.compareAtPrice
-          ? parseFloat(form.compareAtPrice)
-          : undefined,
-        stockQuantity:
-          form.type === "CLOTHING" ? totalClothingStock : form.stockQuantity,
-      };
+      const productData = toProductPayload(form, totalStock);
       await onSubmit({ product: productData, colors });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -358,7 +321,7 @@ export function ProductForm({
               Clothing Stock
             </h2>
             <Badge variant="secondary">
-              Total: {totalClothingStock} units
+              Total: {totalStock} units
             </Badge>
           </div>
           <Separator />

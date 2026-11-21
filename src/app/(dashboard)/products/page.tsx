@@ -36,28 +36,8 @@ import {
   ChevronRight,
   PackageOpen,
 } from "lucide-react";
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  type: "CLOTHING" | "GENERAL";
-  price: number;
-  compareAtPrice?: number;
-  images: string[];
-  tags: string[];
-  stockQuantity: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ProductsResponse {
-  products: Product[];
-  total: number;
-  page: number;
-  limit: number;
-}
+import { productsService } from "@/services/products.service";
+import type { Product } from "@/services/products.service";
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -73,17 +53,13 @@ export default function ProductsPage() {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
+      const data = await productsService.list({
+        page,
+        limit,
+        type: typeFilter !== "all" ? typeFilter : undefined,
+        search: search || undefined,
       });
-      if (typeFilter !== "all") params.set("type", typeFilter);
-      if (search) params.set("search", search);
-
-      const res = await fetch(`/api/products?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const data: ProductsResponse = await res.json();
-      setProducts(data.products);
+      setProducts(data.items);
       setTotal(data.total);
     } catch {
       console.error("Failed to fetch products");
@@ -99,8 +75,7 @@ export default function ProductsPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete product");
+      await productsService.remove(id);
       fetchProducts();
     } catch {
       console.error("Failed to delete product");

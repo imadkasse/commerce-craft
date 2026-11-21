@@ -7,29 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft } from "lucide-react";
 import { ProductForm } from "@/components/products/product-form";
-
-interface Product {
-  id: string;
-  name: string;
-  description: string;
-  type: "CLOTHING" | "GENERAL";
-  price: number;
-  compareAtPrice?: number;
-  images: string[];
-  tags: string[];
-  stockQuantity: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ColorWithSizes {
-  id?: string;
-  name: string;
-  hexCode: string;
-  stockQuantity: number;
-  sizes: { id?: string; sizeLabel: string; stockQuantity: number }[];
-}
+import { productsService } from "@/services/products.service";
+import type {
+  ColorWithSizes,
+  Product,
+  ProductPayload,
+} from "@/services/products.service";
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,42 +25,9 @@ export default function EditProductPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [productRes, colorsRes, sizesRes] = await Promise.all([
-          fetch(`/api/products/${id}`),
-          fetch(`/api/products/${id}/colors`),
-          fetch(`/api/products/${id}/sizes`),
-        ]);
-
-        if (!productRes.ok) throw new Error("Failed to load product");
-        const productData = await productRes.json();
-        setProduct(productData.product);
-
-        let colorsData: { id: string; name: string; hexCode: string; stockQuantity: number }[] = [];
-        if (colorsRes.ok) {
-          const cd = await colorsRes.json();
-          colorsData = cd.colors || [];
-        }
-
-        let sizesData: { colorId: string; sizeLabel: string; stockQuantity: number }[] = [];
-        if (sizesRes.ok) {
-          const sd = await sizesRes.json();
-          sizesData = sd.sizes || [];
-        }
-
-        const colorsWithSizes: ColorWithSizes[] = colorsData.map((color) => ({
-          id: color.id,
-          name: color.name,
-          hexCode: color.hexCode,
-          stockQuantity: color.stockQuantity,
-          sizes: sizesData
-            .filter((s) => s.colorId === color.id)
-            .map((s) => ({
-              sizeLabel: s.sizeLabel,
-              stockQuantity: s.stockQuantity,
-            })),
-        }));
-
-        setColors(colorsWithSizes);
+        const data = await productsService.getProductWithColors(id);
+        setProduct(data.product);
+        setColors(data.colors);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load product");
       } finally {
@@ -88,59 +38,10 @@ export default function EditProductPage() {
   }, [id]);
 
   const handleSubmit = async (data: {
-    product: {
-      name: string;
-      description: string;
-      type: "CLOTHING" | "GENERAL" | "";
-      price: number;
-      compareAtPrice?: number;
-      images: string[];
-      tags: string[];
-      stockQuantity: number;
-      isActive: boolean;
-    };
+    product: ProductPayload;
     colors: ColorWithSizes[];
   }) => {
-    const res = await fetch(`/api/products/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data.product),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => null);
-      throw new Error(err?.error || "Failed to update product");
-    }
-
-    if (data.product.type === "CLOTHING") {
-      for (const color of data.colors) {
-        if (color.id) {
-          await fetch(`/api/products/${id}/colors`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: color.name,
-              hexCode: color.hexCode,
-              stockQuantity: color.stockQuantity,
-            }),
-          });
-        }
-
-        for (const size of color.sizes) {
-          if (!size.id) {
-            await fetch(`/api/products/${id}/sizes`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                colorId: color.id,
-                sizeLabel: size.sizeLabel,
-                stockQuantity: size.stockQuantity,
-              }),
-            });
-          }
-        }
-      }
-    }
+    await productsService.updateProductVariants(id, data);
 
     router.push("/products");
   };

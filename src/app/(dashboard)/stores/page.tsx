@@ -22,6 +22,12 @@ import {
 } from "@/components/ui/dialog";
 import { useAuthStore } from "@/store/auth";
 import {
+  storesService,
+  getCreateStoreErrorMessage,
+  getStoreErrorMessage,
+  type Store,
+} from "@/services/stores.service";
+import {
   Plus,
   Store as StoreIcon,
   ArrowRightLeft,
@@ -32,32 +38,6 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-
-interface StoreTheme {
-  primaryColor?: string;
-  font?: string;
-  layout?: string;
-}
-
-interface Store {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  logoUrl: string | null;
-  domain: string | null;
-  theme: StoreTheme | null;
-  status: "draft" | "published";
-  ownerId: string;
-  role: string;
-  isOwner: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface StoresResponse {
-  stores: Store[];
-}
 
 const FALLBACK_ACCENT = "#b4552e";
 
@@ -111,12 +91,7 @@ function CreateStoreForm({
     }
     setSlugChecking(true);
     try {
-      const res = await fetch(
-        `/api/stores/check-domain?slug=${encodeURIComponent(trimmed)}`
-      );
-      if (!res.ok) throw new Error("Failed to check slug");
-      const data = await res.json();
-      setSlugAvailable(data.slugAvailable === true);
+      setSlugAvailable(await storesService.checkSlug(trimmed));
     } catch {
       setSlugAvailable(null);
     } finally {
@@ -128,36 +103,23 @@ function CreateStoreForm({
     if (!name.trim() || submitting) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/stores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          slug: slug.trim() || undefined,
-          description: description.trim() || undefined,
-          logoUrl: logoUrl.trim() || undefined,
-        }),
+      const store = await storesService.create({
+        name: name.trim(),
+        slug: slug.trim() || undefined,
+        description: description.trim() || undefined,
+        logoUrl: logoUrl.trim() || undefined,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 409) {
-          toast.error("Slug is already taken");
-        } else {
-          toast.error(data.error || "Failed to create store");
-        }
-        return;
-      }
       toast.success("Store created");
       onCreated();
       onClose();
-      const result = await switchStore(data.store.id);
+      const result = await switchStore(store.id);
       if (result?.error) {
         toast.error(result.error);
       } else {
-        router.push(`/stores/${data.store.id}/playground`);
+        router.push(`/stores/${store.id}/playground`);
       }
-    } catch {
-      toast.error("Failed to create store");
+    } catch (err) {
+      toast.error(getCreateStoreErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -487,10 +449,7 @@ export default function StoresPage() {
   const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const getStores = useCallback(async (): Promise<Store[]> => {
-    const res = await fetch("/api/stores");
-    if (!res.ok) throw new Error("Failed to fetch stores");
-    const data: StoresResponse = await res.json();
-    return data.stores;
+    return storesService.list();
   }, []);
 
   const fetchStores = useCallback(async () => {
@@ -540,16 +499,12 @@ export default function StoresPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/stores/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete");
-      }
+      await storesService.remove(id);
       toast.success("Store deleted");
       setLoading(true);
       fetchStores();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(getStoreErrorMessage(err, "Failed to delete"));
     } finally {
       setDeletingId(null);
     }

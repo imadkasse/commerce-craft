@@ -30,30 +30,11 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-
-interface LandingPage {
-  id: string;
-  slug: string;
-  title: string;
-  storeId: string;
-  generatedCode: string | null;
-  status: "draft" | "published";
-  customizations: {
-    font?: string;
-    colors?: Record<string, string>;
-    sectionVisibility?: Record<string, boolean>;
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  price: string;
-  images: string[];
-}
+import {
+  landingPagesService,
+  type LandingPage,
+  type Product,
+} from "@/services/landing-pages.service";
 
 export default function LandingPageEditorPage() {
   const params = useParams();
@@ -97,12 +78,10 @@ export default function LandingPageEditorPage() {
 
     setLoading(true);
     setError("");
-    fetch(`/api/landing-pages/${id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Landing page not found");
-        return res.json();
-      })
-      .then((data) => {
+
+    const loadLandingPage = async () => {
+      try {
+        const data = await landingPagesService.get(id);
         setLandingPage(data.landingPage);
         setProduct(data.product);
         setTitle(data.landingPage.title || "");
@@ -112,13 +91,14 @@ export default function LandingPageEditorPage() {
         setPrimaryColor(cust.colors?.primary || "#4f46e5");
         setBackgroundColor(cust.colors?.background || "#ffffff");
         setFont(cust.font || "Inter, sans-serif");
-      })
-      .catch((err) => {
-        setError(err.message);
-      })
-      .finally(() => {
+      } catch {
+        setError("Landing page not found");
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    loadLandingPage();
   }, [id]);
 
   const customizationsPayload = useMemo(
@@ -186,19 +166,11 @@ export default function LandingPageEditorPage() {
     if (!id) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/landing-pages/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          generatedCode: localCode || landingPage?.generatedCode,
-          customizations: customizationsPayload,
-        }),
+      await landingPagesService.update(id, {
+        title: title.trim(),
+        generatedCode: localCode || landingPage?.generatedCode,
+        customizations: customizationsPayload,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save");
-      }
       showNotification("success", "Changes saved successfully");
     } catch (err: any) {
       showNotification("error", err.message || "Failed to save");
@@ -211,14 +183,10 @@ export default function LandingPageEditorPage() {
     if (!id || !landingPage) return;
     const newStatus = landingPage.status === "published" ? "draft" : "published";
     try {
-      const res = await fetch(`/api/landing-pages/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update status");
+      if (newStatus === "published") {
+        await landingPagesService.publish(id);
+      } else {
+        await landingPagesService.unpublish(id);
       }
       setLandingPage((prev) => (prev ? { ...prev, status: newStatus } : prev));
       showNotification(
@@ -236,16 +204,9 @@ export default function LandingPageEditorPage() {
     if (!product) return;
     setRegenerating(true);
     try {
-      const res = await fetch("/api/ai/generate-page", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: product.id }),
+      const data = await landingPagesService.generate({
+        productId: product.id,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Regeneration failed");
-      }
-      const data = await res.json();
       if (data.landingPage?.generatedCode) {
         setLandingPage((prev) =>
           prev
@@ -269,15 +230,7 @@ export default function LandingPageEditorPage() {
     if (!id) return;
     setSavingCode(true);
     try {
-      const res = await fetch(`/api/landing-pages/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ generatedCode: localCode }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to save code");
-      }
+      await landingPagesService.update(id, { generatedCode: localCode });
       setLandingPage((prev) =>
         prev ? { ...prev, generatedCode: localCode, updatedAt: new Date().toISOString() } : prev
       );

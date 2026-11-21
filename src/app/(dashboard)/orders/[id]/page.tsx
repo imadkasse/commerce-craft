@@ -49,99 +49,21 @@ import {
   RefreshCw,
   Loader2,
 } from "lucide-react";
+import {
+  STATUS_CONFIG,
+  getStatusTransitions,
+  ordersService,
+  type Order,
+} from "@/services/orders.service";
+import { shippingService } from "@/services/shipping.service";
 
-const statusConfig: Record<
-  string,
-  {
-    label: string;
-    variant: "default" | "secondary" | "outline" | "destructive";
-    icon: any;
-    color: string;
-  }
-> = {
-  pending: {
-    label: "Pending",
-    variant: "outline",
-    icon: Clock,
-    color: "text-amber-600 bg-amber-50 border-amber-200",
-  },
-  confirmed: {
-    label: "Confirmed",
-    variant: "secondary",
-    icon: Package,
-    color: "text-blue-600 bg-blue-50 border-blue-200",
-  },
-  shipped: {
-    label: "Shipped",
-    variant: "default",
-    icon: Truck,
-    color: "text-indigo-600 bg-indigo-50 border-indigo-200",
-  },
-  delivered: {
-    label: "Delivered",
-    variant: "default",
-    icon: CheckCircle,
-    color: "text-green-600 bg-green-50 border-green-200",
-  },
-  cancelled: {
-    label: "Cancelled",
-    variant: "destructive",
-    icon: XCircle,
-    color: "text-red-600 bg-red-50 border-red-200",
-  },
+const statusIcons = {
+  clock: Clock,
+  package: Package,
+  truck: Truck,
+  "check-circle": CheckCircle,
+  "x-circle": XCircle,
 };
-
-const statusTransitions: Record<
-  string,
-  Array<{
-    status: string;
-    label: string;
-    variant: "default" | "destructive" | "outline" | "secondary";
-  }>
-> = {
-  pending: [
-    { status: "confirmed", label: "Confirm Order", variant: "default" },
-    { status: "cancelled", label: "Cancel Order", variant: "destructive" },
-  ],
-  confirmed: [
-    { status: "shipped", label: "Mark as Shipped", variant: "default" },
-    { status: "cancelled", label: "Cancel Order", variant: "destructive" },
-  ],
-  shipped: [
-    { status: "delivered", label: "Mark as Delivered", variant: "default" },
-    { status: "cancelled", label: "Cancel Order", variant: "destructive" },
-  ],
-  delivered: [],
-  cancelled: [],
-};
-
-interface OrderItem {
-  id: string;
-  productName: string;
-  productImage?: string;
-  color?: string;
-  size?: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-}
-
-interface Order {
-  id: string;
-  orderNumber: string;
-  status: string;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  customerCity: string;
-  total: number;
-  createdAt: string;
-  updatedAt: string;
-  trackingCode?: string;
-  shippingProvider?: string;
-  notes?: string;
-  items: OrderItem[];
-}
 
 function OrderSkeleton() {
   return (
@@ -164,8 +86,8 @@ function OrderSkeleton() {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config = statusConfig[status] || statusConfig.pending;
-  const Icon = config.icon;
+  const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending;
+  const Icon = statusIcons[config.icon];
   return (
     <Badge
       variant={config.variant}
@@ -200,16 +122,13 @@ export default function OrderDetailPage() {
     if (!id) return;
     setLoading(true);
     setError("");
-    fetch(`/api/orders/${id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch order");
-        return res.json();
-      })
+    ordersService
+      .get(id)
       .then((data) => {
         setOrder(data.order);
       })
-      .catch((err) => {
-        setError(err.message);
+      .catch(() => {
+        setError("Failed to fetch order");
       })
       .finally(() => {
         setLoading(false);
@@ -217,18 +136,11 @@ export default function OrderDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    fetch("/api/shipping/config")
-      .then((res) => res.ok ? res.json() : { providers: {} })
-      .then((data) => {
-        if (data.config?.providers) {
-          const list = Object.entries(data.config.providers).map(([id, cfg]: [string, any]) => ({
-            id,
-            name: id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-            isDemo: !cfg.apiKey,
-          }));
-          setProviders(list);
-          if (list.length > 0) setSelectedProvider(list[0].id);
-        }
+    shippingService
+      .getProviderList()
+      .then((list) => {
+        setProviders(list);
+        if (list.length > 0) setSelectedProvider(list[0].id);
       })
       .catch(() => {});
   }, [order?.id]);
@@ -238,16 +150,7 @@ export default function OrderDetailPage() {
     setUpdateError("");
     setSuccessMessage("");
     try {
-      const res = await fetch(`/api/orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update status");
-      }
-      const data = await res.json();
+      const data = await ordersService.updateStatus(id, newStatus);
       setOrder(data.order);
       setSuccessMessage(`Order status updated to ${newStatus}`);
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -263,19 +166,11 @@ export default function OrderDetailPage() {
     setDispatchLoading(true);
     setDispatchError("");
     try {
-      const res = await fetch("/api/shipping/dispatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: id, provider: selectedProvider }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Dispatch failed");
-      }
-      const orderRes = await fetch(`/api/orders/${id}`);
-      if (orderRes.ok) {
-        const data = await orderRes.json();
-        setOrder(data.order);
+      await shippingService.dispatch(id, selectedProvider);
+      // A non-2xx refresh yields null (ignored); a network error rethrows.
+      const refreshed = await ordersService.getQuietly(id);
+      if (refreshed) {
+        setOrder(refreshed.order);
       }
       setSuccessMessage("Order dispatched successfully!");
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -291,12 +186,7 @@ export default function OrderDetailPage() {
     setTrackingError("");
     setTrackingInfo(null);
     try {
-      const res = await fetch(`/api/shipping/tracking?orderId=${id}`);
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to fetch tracking");
-      }
-      const data = await res.json();
+      const data = await shippingService.getTracking(id);
       setTrackingInfo(data.tracking);
     } catch (err: any) {
       setTrackingError(err.message);
@@ -325,9 +215,9 @@ export default function OrderDetailPage() {
 
   if (!order) return null;
 
-  const transitions = statusTransitions[order.status] || [];
-  const statusInfo = statusConfig[order.status] || statusConfig.pending;
-  const StatusIcon = statusInfo.icon;
+  const transitions = getStatusTransitions(order.status);
+  const statusInfo = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+  const StatusIcon = statusIcons[statusInfo.icon];
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
@@ -339,11 +229,11 @@ export default function OrderDetailPage() {
     });
   };
 
-  const formatPrice = (price: number) => {
+  const formatPrice = (price: number | string) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-    }).format(price);
+    }).format(Number(price));
   };
 
   return (

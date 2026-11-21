@@ -7,6 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Check, Truck, Package, Loader2, MapPin, Home, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  computeTotals,
+  getAvailableSizes,
+  submitCheckout,
+  validateCheckout,
+  type CheckoutValidationMessages,
+} from "@/services/checkout.service";
+
+const CHECKOUT_MESSAGES: CheckoutValidationMessages = {
+  required: "Veuillez remplir tous les champs obligatoires.",
+  productUnavailable: "Aucun produit disponible.",
+  color: "Veuillez sط·آ·ط¢آ£ط·آ¢ط¢آ©lectionner une couleur.",
+  size: "Veuillez sط·آ·ط¢آ£ط·آ¢ط¢آ©lectionner une taille.",
+  outOfStock: "Cette taille n'est plus disponible.",
+};
 
 interface UnifiedCheckoutFormProps {
   product: {
@@ -40,53 +55,45 @@ export function UnifiedCheckoutForm({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{ orderNumber: string } | null>(null);
 
-  const availableSizes = selectedColorId
-    ? sizes.filter((s) => s.colorId === selectedColorId)
-    : [];
+  const availableSizes = getAvailableSizes(selectedColorId, sizes);
 
-  const shippingCost = deliveryOption === "home" ? 500 : 0;
-  const unitPrice = product ? Number(product.price) : 0;
-  const subtotal = unitPrice * quantity;
-  const total = subtotal + shippingCost;
+  const { subtotal, shippingCost, total } = computeTotals({
+    unitPrice: product ? Number(product.price) : 0,
+    quantity,
+    deliveryOption,
+  });
   const selectedColorName = colors.find((c) => c.id === selectedColorId)?.name;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!customerName || !customerPhone || !customerAddress) {
-      setError("Veuillez remplir tous les champs obligatoires.");
+    const validationError = validateCheckout(
+      {
+        customerName,
+        customerPhone,
+        customerAddress,
+        product,
+        colorId: selectedColorId,
+        sizeId: selectedSizeId,
+        sizes,
+      },
+      CHECKOUT_MESSAGES
+    );
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
-    if (!product) {
-      setError("Aucun produit disponible.");
-      return;
-    }
-
-    if (product.type === "CLOTHING") {
-      if (!selectedColorId) {
-        setError("Veuillez sط·آ·ط¢آ£ط·آ¢ط¢آ©lectionner une couleur.");
-        return;
-      }
-      if (!selectedSizeId) {
-        setError("Veuillez sط·آ·ط¢آ£ط·آ¢ط¢آ©lectionner une taille.");
-        return;
-      }
-      const sizeObj = sizes.find((s) => s.id === selectedSizeId);
-      if (sizeObj && sizeObj.stockQuantity === 0) {
-        setError("Cette taille n'est plus disponible.");
-        return;
-      }
-    }
+    // validateCheckout already rejects a missing product; narrows for TS.
+    if (!product) return;
 
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/orders/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await submitCheckout(
+        {
           slug: landingPageSlug,
           productId: product.id,
           quantity,
@@ -98,15 +105,10 @@ export function UnifiedCheckoutForm({
           customerCity,
           customerCommune,
           deliveryOption,
-        }),
-      });
+        },
+        "Erreur lors de la commande"
+      );
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error || "Erreur lors de la commande");
-      }
-
-      const data = await res.json();
       setSuccess({ orderNumber: data.order.orderNumber });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue.");

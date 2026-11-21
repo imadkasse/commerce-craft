@@ -39,36 +39,11 @@ import {
   Sparkles,
   Layout,
 } from "lucide-react";
-
-interface LandingPage {
-  id: string;
-  slug: string;
-  title: string;
-  status: "draft" | "published";
-  productName?: string;
-  productId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface LandingPagesResponse {
-  landingPages: LandingPage[];
-  total: number;
-  page: number;
-  limit: number;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  price: string;
-  type: string;
-}
-
-interface ProductsResponse {
-  products: Product[];
-  total: number;
-}
+import {
+  landingPagesService,
+  type LandingPageListItem as LandingPage,
+  type Product,
+} from "@/services/landing-pages.service";
 
 // ── Inner component that can close the dialog after generation ──
 function GenerateButton({
@@ -230,15 +205,11 @@ export default function LandingPagesPage() {
   const fetchLandingPages = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(limit),
+      const data = await landingPagesService.list({
+        page,
+        limit,
+        search: debouncedSearch,
       });
-      if (debouncedSearch) params.set("search", debouncedSearch);
-
-      const res = await fetch(`/api/landing-pages?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch landing pages");
-      const data: LandingPagesResponse = await res.json();
       setPages(data.landingPages);
       setTotal(data.total);
     } catch {
@@ -257,14 +228,8 @@ export default function LandingPagesPage() {
     setMarketingAnglesInput("");
     setProductsLoading(true);
     try {
-      const res = await fetch("/api/products?limit=100");
-      if (!res.ok) throw new Error("Failed to fetch products");
-      const data: ProductsResponse = await res.json();
-      setProducts(
-        data.products.filter(
-          (p) => !pages.some((lp) => lp.productId === p.id)
-        )
-      );
+      const available = await landingPagesService.listAvailableProducts(pages);
+      setProducts(available);
     } catch {
       toast.error("Failed to load products");
     } finally {
@@ -278,18 +243,10 @@ export default function LandingPagesPage() {
     const toastId = toast.loading("Generating landing page...");
 
     try {
-      const res = await fetch("/api/ai/generate-page", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: selectedProductId,
-          marketingAngles: marketingAnglesInput.split("\n").filter((a) => a.trim()).map((a) => a.trim()),
-        }),
+      await landingPagesService.generate({
+        productId: selectedProductId,
+        marketingAngles: marketingAnglesInput,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Generation failed");
-      }
       toast.success("Landing page generated successfully!", { id: toastId });
       fetchLandingPages();
     } catch (err: any) {
@@ -306,14 +263,10 @@ export default function LandingPagesPage() {
     setPublishingId(lp.id);
     const newStatus = lp.status === "published" ? "draft" : "published";
     try {
-      const res = await fetch(`/api/landing-pages/${lp.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update status");
+      if (newStatus === "published") {
+        await landingPagesService.publish(lp.id);
+      } else {
+        await landingPagesService.unpublish(lp.id);
       }
       setPages((prev) =>
         prev.map((p) => (p.id === lp.id ? { ...p, status: newStatus } : p))
@@ -333,11 +286,7 @@ export default function LandingPagesPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/landing-pages/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete");
-      }
+      await landingPagesService.remove(id);
       toast.success("Landing page deleted");
       fetchLandingPages();
     } catch (err: any) {

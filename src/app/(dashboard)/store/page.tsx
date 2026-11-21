@@ -8,25 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  storesService,
+  getStoreErrorMessage,
+  type Store,
+} from "@/services/stores.service";
 import { Loader2, Save, ExternalLink } from "lucide-react";
-
-interface StoreTheme {
-  primaryColor?: string;
-  font?: string;
-  layout?: string;
-}
-
-interface Store {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  logoUrl: string | null;
-  domain: string | null;
-  theme: StoreTheme;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export default function StorePage() {
   const [store, setStore] = useState<Store | null>(null);
@@ -45,10 +32,7 @@ export default function StorePage() {
 
   const fetchStore = useCallback(async () => {
     try {
-      const res = await fetch("/api/store");
-      if (!res.ok) throw new Error("Failed to load store");
-      const data = await res.json();
-      const s: Store = data.store;
+      const s = await storesService.getCurrentStore();
       setStore(s);
       setName(s.name);
       setSlug(s.slug);
@@ -73,20 +57,16 @@ export default function StorePage() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/store", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, slug, description, logoUrl }),
+      const updated = await storesService.updateCurrentStore({
+        name,
+        slug,
+        description,
+        logoUrl,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update");
-      }
-      const data = await res.json();
-      setStore(data.store);
+      setStore(updated);
       setMessage({ type: "success", text: "Profile updated successfully." });
     } catch (e) {
-      setMessage({ type: "error", text: e instanceof Error ? e.message : "Update failed." });
+      setMessage({ type: "error", text: getStoreErrorMessage(e, "Failed to update") });
     } finally {
       setSaving(false);
     }
@@ -96,14 +76,10 @@ export default function StorePage() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/store", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: { primaryColor, font, layout } }),
+      const updated = await storesService.updateCurrentStore({
+        theme: { primaryColor, font, layout },
       });
-      if (!res.ok) throw new Error("Failed to update theme");
-      const data = await res.json();
-      setStore(data.store);
+      setStore(updated);
       setMessage({ type: "success", text: "Theme updated successfully." });
     } catch {
       setMessage({ type: "error", text: "Failed to update theme." });
@@ -116,20 +92,11 @@ export default function StorePage() {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/store", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update");
-      }
-      const data = await res.json();
-      setStore(data.store);
+      const updated = await storesService.updateCurrentStore({ domain });
+      setStore(updated);
       setMessage({ type: "success", text: "Domain updated successfully." });
     } catch (e) {
-      setMessage({ type: "error", text: e instanceof Error ? e.message : "Update failed." });
+      setMessage({ type: "error", text: getStoreErrorMessage(e, "Failed to update") });
     } finally {
       setSaving(false);
     }
