@@ -1,79 +1,22 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft } from "lucide-react";
-import { ProductForm } from "@/components/products/product-form";
-import { productsService } from "@/services/products.service";
-import type {
-  ColorWithSizes,
-  Product,
-  ProductPayload,
-} from "@/services/products.service";
+import { getSession } from "@/lib/auth/session";
+import { getProductForStore } from "@/lib/server/products";
+import { EditProductView } from "./edit-product-view";
 
-export default function EditProductPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [product, setProduct] = useState<Product | null>(null);
-  const [colors, setColors] = useState<ColorWithSizes[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export default async function EditProductPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const [session, { id }] = await Promise.all([getSession(), params]);
+  if (!session?.storeId) redirect("/login");
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const data = await productsService.getProductWithColors(id);
-        if (cancelled) return;
-        setProduct(data.product);
-        setColors(data.colors);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load product");
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  const data = await getProductForStore(session.storeId, id);
 
-  const handleSubmit = async (data: {
-    product: ProductPayload;
-    colors: ColorWithSizes[];
-  }) => {
-    await productsService.updateProductVariants(id, data);
-
-    router.push("/products");
-  };
-
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-9 w-9" />
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-        </div>
-        <div className="mx-auto max-w-3xl space-y-4">
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !product) {
+  if (!data) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -88,7 +31,7 @@ export default function EditProductPage() {
         </div>
         <div className="mx-auto max-w-3xl">
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error || "Product not found"}
+            Product not found
           </div>
         </div>
       </div>
@@ -96,31 +39,14 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/products">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-950">Edit Product</h1>
-          <p className="text-gray-500">Update &quot;{product.name}&quot;</p>
-        </div>
-      </div>
-
-      <div className="mx-auto max-w-3xl">
-        <ProductForm
-          initialProduct={{
-            ...product,
-            price: product.price.toString(),
-            compareAtPrice: product.compareAtPrice?.toString(),
-          }}
-          initialColors={colors}
-          onSubmit={handleSubmit}
-          isEditing
-        />
-      </div>
-    </div>
+    <EditProductView
+      id={id}
+      initialProduct={{
+        ...data.product,
+        price: data.product.price.toString(),
+        compareAtPrice: data.product.compareAtPrice?.toString(),
+      }}
+      initialColors={data.colors}
+    />
   );
 }

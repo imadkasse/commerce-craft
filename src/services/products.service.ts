@@ -18,7 +18,7 @@ export interface Product {
   slug: string;
   description: string;
   type: ProductType;
-  price: number;
+  price: string;
   compareAtPrice?: number;
   images: string[];
   tags: string[];
