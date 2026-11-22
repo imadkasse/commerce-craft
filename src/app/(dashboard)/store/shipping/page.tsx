@@ -85,7 +85,7 @@ export default function ShippingPage() {
       <div className="flex items-center justify-between">
         <div>
           <Link
-            href="/store"
+            href="/stores/settings"
             className="mb-2 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -128,6 +128,10 @@ export default function ShippingPage() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold text-gray-900">{providerNames[key]}</h3>
                   <button
+                    type="button"
+                    role="switch"
+                    aria-checked={provider.enabled}
+                    aria-label={`Enable ${providerNames[key]}`}
                     onClick={() => updateProvider(key, "enabled", !provider.enabled)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                       provider.enabled ? "bg-indigo-600" : "bg-gray-300"
@@ -213,6 +217,8 @@ export default function ShippingPage() {
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-medium text-gray-500">Rate #{idx + 1}</span>
                 <button
+                  type="button"
+                  aria-label={`Remove rate ${idx + 1}`}
                   onClick={() => removeRate(rate.id)}
                   className="text-gray-400 hover:text-red-500 transition-colors"
                 >

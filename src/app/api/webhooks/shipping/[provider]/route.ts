@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { orders, orderItems, shippingConfig, activityLogs } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -9,7 +10,38 @@ export async function POST(
 ) {
   try {
     const { provider } = await params;
-    const body = await request.json();
+
+    const secret = process.env.SHIPPING_WEBHOOK_SECRET;
+    if (!secret) {
+      return NextResponse.json(
+        { error: "Shipping webhook secret is not configured" },
+        { status: 401 }
+      );
+    }
+
+    const signature =
+      request.headers.get("x-provider-signature") ||
+      request.headers.get("x-signature") ||
+      request.headers.get("x-webhook-signature");
+
+    if (!signature) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const rawBody = await request.text();
+    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+
+    const providedBuf = Buffer.from(signature.trim().toLowerCase(), "utf8");
+    const expectedBuf = Buffer.from(expected, "utf8");
+
+    if (
+      providedBuf.length !== expectedBuf.length ||
+      !timingSafeEqual(providedBuf, expectedBuf)
+    ) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const body = JSON.parse(rawBody);
 
     // Extract tracking code and status from webhook payload
     // Different providers send different payloads

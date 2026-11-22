@@ -16,8 +16,9 @@ const DialogContext = React.createContext<DialogContextValue>({
 
 function Dialog({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
+  const value = React.useMemo(() => ({ open, setOpen }), [open]);
   return (
-    <DialogContext.Provider value={{ open, setOpen }}>
+    <DialogContext.Provider value={value}>
       {children}
     </DialogContext.Provider>
   );
@@ -39,7 +40,15 @@ function DialogTrigger({ children, className, onClick, ...props }: React.ButtonH
   );
 }
 
-function DialogContent({ children, className }: { children: React.ReactNode; className?: string }) {
+function DialogContent({
+  children,
+  className,
+  "aria-label": ariaLabel = "Dialog",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  "aria-label"?: string;
+}) {
   const { open, setOpen } = React.useContext(DialogContext);
   const dialogRef = React.useRef<HTMLDialogElement>(null);
 
@@ -61,6 +70,7 @@ function DialogContent({ children, className }: { children: React.ReactNode; cla
   return (
     <dialog
       ref={dialogRef}
+      aria-label={ariaLabel}
       className={cn(
         "fixed inset-0 z-50 m-auto max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl border border-line bg-surface p-0 shadow-2xl backdrop:bg-black/50 open:animate-in open:fade-in-0",
         className

@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -141,10 +140,14 @@ function GenerateDialogContent({
 
       {selectedProductId && (
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="marketing-angles"
+            className="mb-1.5 block text-sm font-medium text-gray-700"
+          >
             Marketing Angles / Highlights
           </label>
           <textarea
+            id="marketing-angles"
             value={marketingAnglesInput}
             onChange={(e) => onMarketingAnglesChange(e.target.value)}
             placeholder={"Highlight key selling points, one per line..."}
@@ -169,8 +172,32 @@ function GenerateDialogContent({
     </DialogContent>
   );
 }
+
+function StatsCard({
+  icon,
+  iconClassName,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  iconClassName: string;
+  label: string;
+  value: number;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 p-4">
+        <div className={iconClassName}>{icon}</div>
+        <div>
+          <p className="text-sm text-gray-500">{label}</p>
+          <p className="text-xl font-bold text-gray-950">{value}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function LandingPagesPage() {
-  const router = useRouter();
   const [pages, setPages] = useState<LandingPage[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -338,41 +365,24 @@ export default function LandingPagesPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="text-indigo-600">
-              <Layout className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Pages</p>
-              <p className="text-xl font-bold text-gray-950">{total}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="text-green-600">
-              <Globe className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Published</p>
-              <p className="text-xl font-bold text-gray-950">
-                {publishedCount}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="text-gray-400">
-              <FileText className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Drafts</p>
-              <p className="text-xl font-bold text-gray-950">{draftCount}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <StatsCard
+          icon={<Layout className="h-5 w-5" />}
+          iconClassName="text-indigo-600"
+          label="Total Pages"
+          value={total}
+        />
+        <StatsCard
+          icon={<Globe className="h-5 w-5" />}
+          iconClassName="text-green-600"
+          label="Published"
+          value={publishedCount}
+        />
+        <StatsCard
+          icon={<FileText className="h-5 w-5" />}
+          iconClassName="text-gray-400"
+          label="Drafts"
+          value={draftCount}
+        />
       </div>
 
       <div className="relative w-72">

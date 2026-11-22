@@ -91,7 +91,7 @@ commercecraft/
 │   ├── lib/
 │   │   ├── ai/                 # Gemini & Nano Banana client wrappers
 │   │   ├── db/                 # Drizzle/Prisma schema and client connection
-│   │   └── services/           # Google Sheets OAuth & Shipping API integrations
+│   │   └── services/           # APIs calls and Database operations(read , write ...etc)
 │   └── store/                  # Zustand global stores
 ├── public/
 ├── drizzle.config.ts           # DB migration & ORM settings
@@ -139,12 +139,12 @@ commercecraft/
 - **AI Image Editor:** Integrated image manipulation (background removal, enhancement) using Nano Banana.
 - **Live Preview & Customization:** Interactive UI editor to tweak AI-generated sections before publishing.
 
-### 5. 🏪 Store Manager
+### 5. 🏪 Store Manager (Prfere to use lib like :grapesjs)
 - Customizable UI themes and store settings.
 - Custom domain mapping and public route handling for generated landing pages.
 
 ### 6. 🚚 Logistics & Delivery Integrations
-- Connects with local shipping provider APIs for order fulfillment, tracking label creation, and delivery updates.
+- Connects with local shipping provider APIs(Yalidine , ZRexpress and others ) for order fulfillment, tracking label creation, and delivery updates.
 
 ### 7. 👥 Team & RBAC (Role-Based Access Control)
 - Multi-tenant team management.
@@ -180,3 +180,6 @@ commercecraft/
 ├── drizzle.config.ts           # DB migration & ORM settings
 └── next.config.ts
 ````
+
+## Instructions
+- for every change or adding features check the code with `tsc` and run `react doctor` skill

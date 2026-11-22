@@ -26,19 +26,31 @@ export async function GET(
       return NextResponse.json({ error: "Landing page not found" }, { status: 404 });
     }
 
-    const [linkedProduct] = await db
-      .select({
-        id: products.id,
-        name: products.name,
-        slug: products.slug,
-        price: products.price,
-        images: products.images,
-      })
-      .from(products)
-      .where(eq(products.landingPageId, id))
-      .limit(1);
+    let linkedProduct: {
+      id: string;
+      name: string;
+      slug: string;
+      price: string;
+      images: string[] | null;
+    } | null = null;
 
-    return NextResponse.json({ landingPage, product: linkedProduct || null });
+    if (landingPage.productId) {
+      const [product] = await db
+        .select({
+          id: products.id,
+          name: products.name,
+          slug: products.slug,
+          price: products.price,
+          images: products.images,
+        })
+        .from(products)
+        .where(eq(products.id, landingPage.productId))
+        .limit(1);
+
+      linkedProduct = product ?? null;
+    }
+
+    return NextResponse.json({ landingPage, product: linkedProduct });
   } catch (error) {
     console.error("LandingPage GET error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -150,11 +162,6 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json({ error: "Landing page not found" }, { status: 404 });
     }
-
-    await db
-      .update(products)
-      .set({ landingPageId: null })
-      .where(eq(products.landingPageId, id));
 
     await db.delete(landingPages).where(eq(landingPages.id, id));
 

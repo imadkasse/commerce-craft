@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import {
 
 export function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,14 +29,19 @@ export function LoginForm() {
     setError("");
     setLoading(true);
 
-    const result = await login(email, password);
-    setLoading(false);
+    try {
+      const result = await login(email, password);
 
-    if (result.error) {
-      setError(result.error);
-    } else {
-      const redirect = searchParams.get("redirect") || "/dashboard";
-      router.push(redirect);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        const redirect =
+          new URL(window.location.href).searchParams.get("redirect") ||
+          "/dashboard";
+        router.push(redirect);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 

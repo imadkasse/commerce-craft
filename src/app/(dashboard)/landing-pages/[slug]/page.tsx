@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,57 @@ import {
   type Product,
 } from "@/services/landing-pages.service";
 
-export default function LandingPageEditorPage() {
+function LandingPageEditorSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-10 w-10 rounded-lg" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <Skeleton className="h-[600px] rounded-xl lg:col-span-2" />
+        <Skeleton className="h-[600px] rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+function ColorField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          id={id}
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-9 cursor-pointer rounded-md border border-gray-300 bg-white p-0.5"
+        />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 font-mono text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+function LandingPageEditor() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -79,9 +129,12 @@ export default function LandingPageEditorPage() {
     setLoading(true);
     setError("");
 
+    let cancelled = false;
+
     const loadLandingPage = async () => {
       try {
         const data = await landingPagesService.get(id);
+        if (cancelled) return;
         setLandingPage(data.landingPage);
         setProduct(data.product);
         setTitle(data.landingPage.title || "");
@@ -92,13 +145,17 @@ export default function LandingPageEditorPage() {
         setBackgroundColor(cust.colors?.background || "#ffffff");
         setFont(cust.font || "Inter, sans-serif");
       } catch {
-        setError("Landing page not found");
+        if (!cancelled) setError("Landing page not found");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadLandingPage();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const customizationsPayload = useMemo(
@@ -158,7 +215,14 @@ export default function LandingPageEditorPage() {
       </body>
       </html>
     `;
-  }, [landingPage?.generatedCode, primaryColor, backgroundColor, font, buttonStyle]);
+  }, [
+    localCode,
+    landingPage?.generatedCode,
+    primaryColor,
+    backgroundColor,
+    font,
+    buttonStyle,
+  ]);
 
   const previewSrcDoc = useMemo(() => getPreviewHtml(), [getPreviewHtml]);
 
@@ -251,21 +315,7 @@ export default function LandingPageEditorPage() {
   };
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10 rounded-lg" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Skeleton className="h-[600px] rounded-xl lg:col-span-2" />
-          <Skeleton className="h-[600px] rounded-xl" />
-        </div>
-      </div>
-    );
+    return <LandingPageEditorSkeleton />;
   }
 
   if (error) {
@@ -431,41 +481,19 @@ export default function LandingPageEditorPage() {
               </TabsContent>
 
               <TabsContent value="design" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="primaryColor">Primary Color</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="primaryColor"
-                      type="color"
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="h-9 w-9 cursor-pointer rounded-md border border-gray-300 bg-white p-0.5"
-                    />
-                    <Input
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="flex-1 font-mono text-sm"
-                    />
-                  </div>
-                </div>
+                <ColorField
+                  id="primaryColor"
+                  label="Primary Color"
+                  value={primaryColor}
+                  onChange={setPrimaryColor}
+                />
 
-                <div className="space-y-2">
-                  <Label htmlFor="backgroundColor">Background Color</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="backgroundColor"
-                      type="color"
-                      value={backgroundColor}
-                      onChange={(e) => setBackgroundColor(e.target.value)}
-                      className="h-9 w-9 cursor-pointer rounded-md border border-gray-300 bg-white p-0.5"
-                    />
-                    <Input
-                      value={backgroundColor}
-                      onChange={(e) => setBackgroundColor(e.target.value)}
-                      className="flex-1 font-mono text-sm"
-                    />
-                  </div>
-                </div>
+                <ColorField
+                  id="backgroundColor"
+                  label="Background Color"
+                  value={backgroundColor}
+                  onChange={setBackgroundColor}
+                />
 
                 <div className="space-y-2">
                   <Label htmlFor="font">Font Family</Label>
@@ -611,5 +639,13 @@ export default function LandingPageEditorPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function LandingPageEditorPage() {
+  return (
+    <Suspense fallback={<LandingPageEditorSkeleton />}>
+      <LandingPageEditor />
+    </Suspense>
   );
 }

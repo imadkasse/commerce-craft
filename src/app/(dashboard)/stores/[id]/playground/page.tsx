@@ -106,6 +106,199 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
+function DesignSection({
+  theme,
+  updateTheme,
+}: {
+  theme: StoreTheme;
+  updateTheme: (patch: Partial<StoreTheme>) => void;
+}) {
+  return (
+    <section className="space-y-4 border-t border-line pt-4">
+      <SectionHeader>Design</SectionHeader>
+
+      <div className="space-y-2">
+        <FieldLabel>Primary Color</FieldLabel>
+        <div className="flex flex-wrap items-center gap-2">
+          {PRESET_COLORS.map((color) => {
+            const active =
+              theme.primaryColor.toLowerCase() === color.toLowerCase();
+            return (
+              <button
+                key={color}
+                type="button"
+                onClick={() => updateTheme({ primaryColor: color })}
+                aria-label={`Set primary color to ${color}`}
+                aria-pressed={active}
+                className={cn(
+                  "h-8 w-8 rounded-full border-2 border-transparent transition-transform hover:scale-105",
+                  active
+                    ? "ring-2 ring-accent ring-offset-2 ring-offset-paper"
+                    : "hover:ring-2 hover:ring-line hover:ring-offset-2 hover:ring-offset-paper"
+                )}
+                style={{ backgroundColor: color }}
+              />
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            id="primary-color"
+            type="color"
+            value={theme.primaryColor}
+            onChange={(e) => updateTheme({ primaryColor: e.target.value })}
+            aria-label="Pick a custom primary color"
+            className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-line bg-surface p-0.5"
+          />
+          <Input
+            value={theme.primaryColor}
+            onChange={(e) => updateTheme({ primaryColor: e.target.value })}
+            aria-label="Primary color hex value"
+            className="h-9 flex-1 font-mono text-sm"
+          />
+          <div
+            className="h-7 w-7 shrink-0 rounded-full border border-line shadow-inner"
+            style={{ backgroundColor: theme.primaryColor }}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <FieldLabel htmlFor="font">Font</FieldLabel>
+        <Select
+          id="font"
+          className="rounded-lg"
+          value={theme.font}
+          onChange={(e) =>
+            updateTheme({ font: e.target.value as StoreTheme["font"] })
+          }
+        >
+          <option value="Inter">Inter</option>
+          <option value="Geist">Geist</option>
+          <option value="Bricolage Grotesque">Bricolage Grotesque</option>
+          <option value="Schibsted Grotesk">Schibsted Grotesk</option>
+          <option value="system-ui">System Default</option>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <FieldLabel htmlFor="navbar-style">Navbar Style</FieldLabel>
+        <Select
+          id="navbar-style"
+          className="rounded-lg"
+          value={theme.navbarStyle}
+          onChange={(e) =>
+            updateTheme({
+              navbarStyle: e.target.value as StoreTheme["navbarStyle"],
+            })
+          }
+        >
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="gradient">Gradient</option>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <FieldLabel>Product Columns</FieldLabel>
+        <div className="grid grid-cols-3 gap-1 rounded-full border border-line bg-surface p-1">
+          {GRID_COLUMNS.map((cols) => (
+            <button
+              key={cols}
+              type="button"
+              onClick={() => updateTheme({ gridColumns: cols })}
+              className={cn(
+                "rounded-full px-2 py-1.5 text-sm transition-colors",
+                theme.gridColumns === cols
+                  ? "bg-accent font-medium text-white"
+                  : "text-muted hover:text-ink"
+              )}
+            >
+              {cols} col
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ContentSection({
+  theme,
+  updateTheme,
+}: {
+  theme: StoreTheme;
+  updateTheme: (patch: Partial<StoreTheme>) => void;
+}) {
+  return (
+    <section className="space-y-4 border-t border-line pt-4">
+      <SectionHeader>Content</SectionHeader>
+
+      <div className="space-y-2">
+        <FieldLabel htmlFor="hero-headline">Hero Headline</FieldLabel>
+        <Input
+          id="hero-headline"
+          value={theme.hero.headline}
+          onChange={(e) =>
+            updateTheme({
+              hero: { ...theme.hero, headline: e.target.value },
+            })
+          }
+          placeholder="Welcome to our store"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <FieldLabel htmlFor="hero-subtitle">Hero Subtitle</FieldLabel>
+        <Input
+          id="hero-subtitle"
+          value={theme.hero.subtitle}
+          onChange={(e) =>
+            updateTheme({
+              hero: { ...theme.hero, subtitle: e.target.value },
+            })
+          }
+          placeholder="Discover our latest products"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <FieldLabel htmlFor="hero-image">Hero Image URL</FieldLabel>
+        <Input
+          id="hero-image"
+          value={theme.hero.imageUrl}
+          onChange={(e) =>
+            updateTheme({
+              hero: { ...theme.hero, imageUrl: e.target.value },
+            })
+          }
+          placeholder="https://example.com/hero.jpg"
+        />
+      </div>
+
+      <label className="flex cursor-pointer items-center justify-between gap-3">
+        <span className="text-sm font-medium text-ink">
+          Show categories
+        </span>
+        <span className="relative inline-flex items-center">
+          <input
+            id="show-categories"
+            name="show-categories"
+            type="checkbox"
+            checked={theme.showCategories}
+            onChange={(e) =>
+              updateTheme({ showCategories: e.target.checked })
+            }
+            className="peer sr-only"
+          />
+          <span className="h-5 w-9 rounded-full bg-gray-300 transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent/30 peer-focus-visible:ring-offset-1" />
+          <span className="absolute left-0.5 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-surface shadow-sm transition-transform peer-checked:translate-x-4" />
+        </span>
+      </label>
+    </section>
+  );
+}
+
 export default function StorePlaygroundPage() {
   const params = useParams();
   const id = params.id as string;
@@ -315,185 +508,8 @@ export default function StorePlaygroundPage() {
 
         <div className="flex w-96 shrink-0 flex-col border-l border-line bg-paper">
           <div className="flex-1 space-y-6 overflow-y-auto p-5">
-            <section className="space-y-4 border-t border-line pt-4">
-              <SectionHeader>Design</SectionHeader>
-
-              <div className="space-y-2">
-                <FieldLabel>Primary Color</FieldLabel>
-                <div className="flex flex-wrap items-center gap-2">
-                  {PRESET_COLORS.map((color) => {
-                    const active =
-                      theme.primaryColor.toLowerCase() === color.toLowerCase();
-                    return (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => updateTheme({ primaryColor: color })}
-                        aria-label={`Set primary color to ${color}`}
-                        aria-pressed={active}
-                        className={cn(
-                          "h-8 w-8 rounded-full border-2 border-transparent transition-transform hover:scale-105",
-                          active
-                            ? "ring-2 ring-accent ring-offset-2 ring-offset-paper"
-                            : "hover:ring-2 hover:ring-line hover:ring-offset-2 hover:ring-offset-paper"
-                        )}
-                        style={{ backgroundColor: color }}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="primary-color"
-                    type="color"
-                    value={theme.primaryColor}
-                    onChange={(e) =>
-                      updateTheme({ primaryColor: e.target.value })
-                    }
-                    aria-label="Pick a custom primary color"
-                    className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-line bg-surface p-0.5"
-                  />
-                  <Input
-                    value={theme.primaryColor}
-                    onChange={(e) =>
-                      updateTheme({ primaryColor: e.target.value })
-                    }
-                    aria-label="Primary color hex value"
-                    className="h-9 flex-1 font-mono text-sm"
-                  />
-                  <div
-                    className="h-7 w-7 shrink-0 rounded-full border border-line shadow-inner"
-                    style={{ backgroundColor: theme.primaryColor }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <FieldLabel htmlFor="font">Font</FieldLabel>
-                <Select
-                  id="font"
-                  className="rounded-lg"
-                  value={theme.font}
-                  onChange={(e) =>
-                    updateTheme({ font: e.target.value as StoreTheme["font"] })
-                  }
-                >
-                  <option value="Inter">Inter</option>
-                  <option value="Geist">Geist</option>
-                  <option value="Bricolage Grotesque">
-                    Bricolage Grotesque
-                  </option>
-                  <option value="Schibsted Grotesk">Schibsted Grotesk</option>
-                  <option value="system-ui">System Default</option>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <FieldLabel htmlFor="navbar-style">Navbar Style</FieldLabel>
-                <Select
-                  id="navbar-style"
-                  className="rounded-lg"
-                  value={theme.navbarStyle}
-                  onChange={(e) =>
-                    updateTheme({
-                      navbarStyle: e.target
-                        .value as StoreTheme["navbarStyle"],
-                    })
-                  }
-                >
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
-                  <option value="gradient">Gradient</option>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <FieldLabel>Product Columns</FieldLabel>
-                <div className="grid grid-cols-3 gap-1 rounded-full border border-line bg-surface p-1">
-                  {GRID_COLUMNS.map((cols) => (
-                    <button
-                      key={cols}
-                      type="button"
-                      onClick={() => updateTheme({ gridColumns: cols })}
-                      className={cn(
-                        "rounded-full px-2 py-1.5 text-sm transition-colors",
-                        theme.gridColumns === cols
-                          ? "bg-accent font-medium text-white"
-                          : "text-muted hover:text-ink"
-                      )}
-                    >
-                      {cols} col
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-4 border-t border-line pt-4">
-              <SectionHeader>Content</SectionHeader>
-
-              <div className="space-y-2">
-                <FieldLabel htmlFor="hero-headline">Hero Headline</FieldLabel>
-                <Input
-                  id="hero-headline"
-                  value={theme.hero.headline}
-                  onChange={(e) =>
-                    updateTheme({
-                      hero: { ...theme.hero, headline: e.target.value },
-                    })
-                  }
-                  placeholder="Welcome to our store"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <FieldLabel htmlFor="hero-subtitle">Hero Subtitle</FieldLabel>
-                <Input
-                  id="hero-subtitle"
-                  value={theme.hero.subtitle}
-                  onChange={(e) =>
-                    updateTheme({
-                      hero: { ...theme.hero, subtitle: e.target.value },
-                    })
-                  }
-                  placeholder="Discover our latest products"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <FieldLabel htmlFor="hero-image">Hero Image URL</FieldLabel>
-                <Input
-                  id="hero-image"
-                  value={theme.hero.imageUrl}
-                  onChange={(e) =>
-                    updateTheme({
-                      hero: { ...theme.hero, imageUrl: e.target.value },
-                    })
-                  }
-                  placeholder="https://example.com/hero.jpg"
-                />
-              </div>
-
-              <label className="flex cursor-pointer items-center justify-between gap-3">
-                <span className="text-sm font-medium text-ink">
-                  Show categories
-                </span>
-                <span className="relative inline-flex items-center">
-                  <input
-                    id="show-categories"
-                    name="show-categories"
-                    type="checkbox"
-                    checked={theme.showCategories}
-                    onChange={(e) =>
-                      updateTheme({ showCategories: e.target.checked })
-                    }
-                    className="peer sr-only"
-                  />
-                  <span className="h-5 w-9 rounded-full bg-gray-300 transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent/30 peer-focus-visible:ring-offset-1" />
-                  <span className="absolute left-0.5 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-surface shadow-sm transition-transform peer-checked:translate-x-4" />
-                </span>
-              </label>
-            </section>
+            <DesignSection theme={theme} updateTheme={updateTheme} />
+            <ContentSection theme={theme} updateTheme={updateTheme} />
           </div>
 
           <div className="border-t border-line p-5 pt-4">

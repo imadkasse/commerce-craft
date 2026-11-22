@@ -55,7 +55,7 @@ import {
   ordersService,
   type Order,
 } from "@/services/orders.service";
-import { shippingService } from "@/services/shipping.service";
+import { shippingService, type TrackingInfo } from "@/services/shipping.service";
 
 const statusIcons = {
   clock: Clock,
@@ -64,6 +64,11 @@ const statusIcons = {
   "check-circle": CheckCircle,
   "x-circle": XCircle,
 };
+
+const priceFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
 
 function OrderSkeleton() {
   return (
@@ -99,6 +104,125 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function TrackingCard({
+  order,
+  trackingInfo,
+  trackingError,
+  trackingLoading,
+  onRefresh,
+}: {
+  order: Order;
+  trackingInfo: TrackingInfo | null;
+  trackingError: string;
+  trackingLoading: boolean;
+  onRefresh: () => void;
+}) {
+  if (
+    !order.trackingCode &&
+    !order.shippingProvider &&
+    order.status !== "shipped" &&
+    order.status !== "delivered"
+  ) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
+            <Truck className="h-5 w-5 text-indigo-600" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Tracking Information</CardTitle>
+            <CardDescription>Shipping and delivery details</CardDescription>
+          </div>
+        </div>
+        {(order.trackingCode || order.shippingProvider) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={trackingLoading}
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${trackingLoading ? "animate-spin" : ""}`} />
+            {trackingLoading ? "Loading..." : "Refresh"}
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {order.trackingCode && (
+            <div>
+              <p className="text-xs text-gray-500">Tracking Code</p>
+              <p className="text-sm font-medium text-gray-900">{order.trackingCode}</p>
+            </div>
+          )}
+          {order.shippingProvider && (
+            <div>
+              <p className="text-xs text-gray-500">Shipping Provider</p>
+              <p className="text-sm font-medium text-gray-900">{order.shippingProvider}</p>
+            </div>
+          )}
+        </div>
+        {trackingError && (
+          <p className="mt-3 text-sm text-amber-600">{trackingError}</p>
+        )}
+        {trackingInfo && (
+          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Status:</span>
+              <Badge variant={trackingInfo.status === "delivered" ? "default" : "secondary"}>
+                {trackingInfo.status}
+              </Badge>
+            </div>
+            {trackingInfo.estimatedDelivery && (
+              <p className="text-sm text-gray-600">
+                Estimated delivery: {trackingInfo.estimatedDelivery}
+              </p>
+            )}
+            {trackingInfo.events && trackingInfo.events.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-500">Tracking History</p>
+                {trackingInfo.events.map((event) => (
+                  <div key={`${event.date}-${event.description}`} className="flex items-start gap-3 text-sm">
+                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
+                    <div>
+                      <p className="text-gray-900">{event.description}</p>
+                      <p className="text-xs text-gray-500">{event.date}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function NotesCard({ notes }: { notes: string }) {
+  if (!notes) return null;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center gap-3 pb-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
+          <FileText className="h-5 w-5 text-indigo-600" />
+        </div>
+        <div>
+          <CardTitle className="text-base">Notes</CardTitle>
+          <CardDescription>Additional order information</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="whitespace-pre-wrap text-sm text-gray-700">{notes}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -115,7 +239,7 @@ export default function OrderDetailPage() {
   const [dispatchLoading, setDispatchLoading] = useState(false);
   const [dispatchError, setDispatchError] = useState("");
   const [trackingLoading, setTrackingLoading] = useState(false);
-  const [trackingInfo, setTrackingInfo] = useState<{ status: string; estimatedDelivery?: string; events?: Array<{ date: string; description: string }> } | null>(null);
+  const [trackingInfo, setTrackingInfo] = useState<TrackingInfo | null>(null);
   const [trackingError, setTrackingError] = useState("");
 
   useEffect(() => {
@@ -230,10 +354,7 @@ export default function OrderDetailPage() {
   };
 
   const formatPrice = (price: number | string) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(Number(price));
+    return priceFormatter.format(Number(price));
   };
 
   return (
@@ -459,99 +580,15 @@ export default function OrderDetailPage() {
         </CardContent>
       </Card>
 
-      {(order.trackingCode || order.shippingProvider || order.status === "shipped" || order.status === "delivered") && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
-                <Truck className="h-5 w-5 text-indigo-600" />
-              </div>
-              <div>
-                <CardTitle className="text-base">Tracking Information</CardTitle>
-                <CardDescription>Shipping and delivery details</CardDescription>
-              </div>
-            </div>
-            {(order.trackingCode || order.shippingProvider) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={refreshTracking}
-                disabled={trackingLoading}
-              >
-                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${trackingLoading ? "animate-spin" : ""}`} />
-                {trackingLoading ? "Loading..." : "Refresh"}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {order.trackingCode && (
-                <div>
-                  <p className="text-xs text-gray-500">Tracking Code</p>
-                  <p className="text-sm font-medium text-gray-900">{order.trackingCode}</p>
-                </div>
-              )}
-              {order.shippingProvider && (
-                <div>
-                  <p className="text-xs text-gray-500">Shipping Provider</p>
-                  <p className="text-sm font-medium text-gray-900">{order.shippingProvider}</p>
-                </div>
-              )}
-            </div>
-            {trackingError && (
-              <p className="mt-3 text-sm text-amber-600">{trackingError}</p>
-            )}
-            {trackingInfo && (
-              <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Status:</span>
-                  <Badge variant={trackingInfo.status === "delivered" ? "default" : "secondary"}>
-                    {trackingInfo.status}
-                  </Badge>
-                </div>
-                {trackingInfo.estimatedDelivery && (
-                  <p className="text-sm text-gray-600">
-                    Estimated delivery: {trackingInfo.estimatedDelivery}
-                  </p>
-                )}
-                {trackingInfo.events && trackingInfo.events.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-gray-500">Tracking History</p>
-                    {trackingInfo.events.map((event, i) => (
-                      <div key={i} className="flex items-start gap-3 text-sm">
-                        <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
-                        <div>
-                          <p className="text-gray-900">{event.description}</p>
-                          <p className="text-xs text-gray-500">{event.date}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <TrackingCard
+        order={order}
+        trackingInfo={trackingInfo}
+        trackingError={trackingError}
+        trackingLoading={trackingLoading}
+        onRefresh={refreshTracking}
+      />
 
-      {order.notes && (
-        <Card>
-          <CardHeader className="flex flex-row items-center gap-3 pb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
-              <FileText className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Notes</CardTitle>
-              <CardDescription>Additional order information</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap text-sm text-gray-700">
-              {order.notes}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <NotesCard notes={order.notes ?? ""} />
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-3 pb-4">

@@ -49,7 +49,7 @@ export async function GET(request: Request) {
         updatedAt: landingPages.updatedAt,
       })
       .from(landingPages)
-      .leftJoin(products, eq(products.landingPageId, landingPages.id))
+      .leftJoin(products, eq(products.id, landingPages.productId))
       .where(where)
       .orderBy(desc(landingPages.createdAt))
       .limit(limit)
@@ -106,15 +106,9 @@ export async function POST(request: Request) {
         slug,
         title: title.trim(),
         storeId: payload.storeId,
+        productId: productId ?? null,
       })
       .returning();
-
-    if (productId) {
-      await db
-        .update(products)
-        .set({ landingPageId: newLandingPage.id })
-        .where(and(eq(products.id, productId), eq(products.storeId, payload.storeId)));
-    }
 
     await db.insert(activityLogs).values({
       userId: payload.userId,

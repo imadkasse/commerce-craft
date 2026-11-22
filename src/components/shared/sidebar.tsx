@@ -22,7 +22,7 @@ const navItems = [
   { href: "/products", label: "Products", icon: Package },
   { href: "/orders", label: "Orders", icon: ShoppingCart },
   { href: "/landing-pages", label: "Landing Pages", icon: FileText },
-  { href: "/store", label: "Store Settings", icon: Store },
+  { href: "/stores/settings", label: "Store Settings", icon: Store },
   { href: "/store/shipping", label: "Shipping", icon: Truck },
   { href: "/stores", label: "Stores", icon: Store },
   { href: "/team", label: "Team", icon: Users },
@@ -36,8 +36,10 @@ export function Sidebar() {
     <>
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+        <button
+          type="button"
+          className="fixed inset-0 z-40 cursor-default border-0 bg-black/50 p-0 text-left lg:hidden"
+          aria-label="Close menu"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -46,6 +48,8 @@ export function Sidebar() {
       <button
         className="fixed top-4 left-4 z-50 rounded-md bg-accent p-2 text-white shadow-lg lg:hidden"
         onClick={toggleSidebar}
+        type="button"
+        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
       >
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>

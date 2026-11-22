@@ -84,16 +84,12 @@ export async function POST(request: Request) {
         slug,
         title: product.name,
         storeId: payload.storeId,
+        productId: product.id,
         generatedCode: html,
         status: "draft",
         customizations: {},
       })
       .returning();
-
-    await db
-      .update(products)
-      .set({ landingPageId: landingPage.id })
-      .where(eq(products.id, product.id));
 
     await db.insert(activityLogs).values({
       userId: payload.userId,

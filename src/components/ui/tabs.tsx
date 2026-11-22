@@ -30,9 +30,13 @@ function Tabs({
   const [internalValue, setInternalValue] = React.useState(defaultValue);
   const value = controlledValue ?? internalValue;
   const onValueChange = onControlledValueChange ?? setInternalValue;
+  const contextValue = React.useMemo(
+    () => ({ value, onValueChange }),
+    [value, onValueChange]
+  );
 
   return (
-    <TabsContext.Provider value={{ value, onValueChange }}>
+    <TabsContext.Provider value={contextValue}>
       <div className={cn("", className)} {...props}>
         {children}
       </div>

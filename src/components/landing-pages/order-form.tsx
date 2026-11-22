@@ -39,13 +39,72 @@ interface OrderFormProps {
   sizes?: { id: string; colorId: string; sizeLabel: string; stockQuantity: number }[];
 }
 
+const EMPTY_COLORS: NonNullable<OrderFormProps["colors"]> = [];
+const EMPTY_SIZES: NonNullable<OrderFormProps["sizes"]> = [];
 
+function DeliveryOptionButton({
+  value,
+  active,
+  onSelect,
+  Icon,
+  title,
+  subtitle,
+  subtitleClassName,
+}: {
+  value: "home" | "desk";
+  active: boolean;
+  onSelect: (value: "home" | "desk") => void;
+  Icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  subtitle: string;
+  subtitleClassName?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      className={cn(
+        "flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all",
+        active
+          ? "border-indigo-500 bg-indigo-50"
+          : "border-gray-200 hover:border-gray-300"
+      )}
+    >
+      <Icon
+        className={cn("h-6 w-6", active ? "text-indigo-600" : "text-gray-400")}
+      />
+      <span className="text-sm font-medium">{title}</span>
+      <span className={cn("text-xs", subtitleClassName)}>{subtitle}</span>
+    </button>
+  );
+}
+
+function PriceRow({
+  label,
+  value,
+  labelClassName,
+  valueClassName,
+  className,
+}: {
+  label: string;
+  value: string;
+  labelClassName?: string;
+  valueClassName?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex justify-between", className)}>
+      <span className={labelClassName ?? "text-gray-600"}>{label}</span>
+      <span className={valueClassName}>{value}</span>
+    </div>
+  );
+}
 
 export function OrderForm({
   product,
   landingPageSlug,
-  colors = [],
-  sizes = [],
+  colors = EMPTY_COLORS,
+  sizes = EMPTY_SIZES,
 }: OrderFormProps) {
   const [selectedColorId, setSelectedColorId] = useState("");
   const [selectedSizeId, setSelectedSizeId] = useState("");
@@ -381,65 +440,53 @@ export function OrderForm({
       <div className="border-t pt-6 space-y-3">
         <h4 className="font-medium text-gray-900">طريقة التوصيل</h4>
         <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setDeliveryOption("home")}
-            className={cn(
-              "flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all",
-              deliveryOption === "home"
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-gray-200 hover:border-gray-300"
-            )}
-          >
-            <Home
-              className={cn(
-                "h-6 w-6",
-                deliveryOption === "home" ? "text-indigo-600" : "text-gray-400"
-              )}
-            />
-            <span className="text-sm font-medium">توصيل إلى المنزل</span>
-            <span className="text-xs text-gray-500">500 د.ج</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeliveryOption("desk")}
-            className={cn(
-              "flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all",
-              deliveryOption === "desk"
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-gray-200 hover:border-gray-300"
-            )}
-          >
-            <Building2
-              className={cn(
-                "h-6 w-6",
-                deliveryOption === "desk" ? "text-indigo-600" : "text-gray-400"
-              )}
-            />
-            <span className="text-sm font-medium">استلام من المكتب</span>
-            <span className="text-xs text-green-600 font-medium">مجاني</span>
-          </button>
+          <DeliveryOptionButton
+            value="home"
+            active={deliveryOption === "home"}
+            onSelect={setDeliveryOption}
+            Icon={Home}
+            title="توصيل إلى المنزل"
+            subtitle="500 د.ج"
+            subtitleClassName="text-gray-500"
+          />
+          <DeliveryOptionButton
+            value="desk"
+            active={deliveryOption === "desk"}
+            onSelect={setDeliveryOption}
+            Icon={Building2}
+            title="استلام من المكتب"
+            subtitle="مجاني"
+            subtitleClassName="text-green-600 font-medium"
+          />
         </div>
       </div>
 
       {/* Price Breakdown */}
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">المجموع الفرعي</span>
-          <span className="font-medium">{subtotal.toLocaleString()} د.ج</span>
-        </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">الشحن</span>
-          <span className={cn("font-medium", shippingCost === 0 && "text-green-600")}>
-            {shippingCost === 0 ? "مجاني" : `${shippingCost.toLocaleString()} د.ج`}
-          </span>
-        </div>
-        <div className="border-t pt-2 flex justify-between">
-          <span className="font-bold text-gray-900">المجموع</span>
-          <span className="font-bold text-indigo-600 text-lg">
-            {total.toLocaleString()} د.ج
-          </span>
-        </div>
+        <PriceRow
+          className="text-sm"
+          label="المجموع الفرعي"
+          value={`${subtotal.toLocaleString()} د.ج`}
+          valueClassName="font-medium"
+        />
+        <PriceRow
+          className="text-sm"
+          label="الشحن"
+          value={
+            shippingCost === 0 ? "مجاني" : `${shippingCost.toLocaleString()} د.ج`
+          }
+          valueClassName={cn(
+            "font-medium",
+            shippingCost === 0 && "text-green-600"
+          )}
+        />
+        <PriceRow
+          className="border-t pt-2"
+          label="المجموع"
+          value={`${total.toLocaleString()} د.ج`}
+          labelClassName="font-bold text-gray-900"
+          valueClassName="font-bold text-indigo-600 text-lg"
+        />
       </div>
 
       <Button

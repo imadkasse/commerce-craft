@@ -29,6 +29,13 @@
       "when": 1785575285288,
       "tag": "0003_add_store_status",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795346107121,
+      "tag": "0004_overconfident_shriek",
+      "breakpoints": true
     }
   ]
 }

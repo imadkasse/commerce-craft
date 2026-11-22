@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { products, productColors, productSizes } from "@/lib/db/schema";
+import { products, productColors, productSizes, landingPages } from "@/lib/db/schema";
 import { getTokenFromRequest } from "@/lib/auth/session";
 import { eq, and } from "drizzle-orm";
 
@@ -125,9 +125,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    await db.delete(productSizes).where(eq(productSizes.productId, id));
-    await db.delete(productColors).where(eq(productColors.productId, id));
-    await db.delete(products).where(eq(products.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(landingPages).where(eq(landingPages.productId, id));
+      await tx.delete(productSizes).where(eq(productSizes.productId, id));
+      await tx.delete(productColors).where(eq(productColors.productId, id));
+      await tx.delete(products).where(eq(products.id, id));
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

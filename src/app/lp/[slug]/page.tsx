@@ -25,7 +25,7 @@ export async function generateMetadata({
       productImages: products.images,
     })
     .from(landingPages)
-    .leftJoin(products, eq(products.landingPageId, landingPages.id))
+    .leftJoin(products, eq(products.id, landingPages.productId))
     .where(
       and(eq(landingPages.slug, slug), eq(landingPages.status, "published"))
     )
@@ -68,11 +68,15 @@ export default async function LandingPagePage({
 
   if (!landingPage) notFound();
 
-  const [product] = await db
-    .select()
-    .from(products)
-    .where(eq(products.landingPageId, landingPage.id))
-    .limit(1);
+  let product: (typeof products.$inferSelect) | undefined;
+
+  if (landingPage.productId) {
+    [product] = await db
+      .select()
+      .from(products)
+      .where(eq(products.id, landingPage.productId))
+      .limit(1);
+  }
 
   let colors: (typeof productColors.$inferSelect)[] = [];
   let sizes: (typeof productSizes.$inferSelect)[] = [];

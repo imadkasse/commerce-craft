@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,8 +25,11 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
+  useDialogContext,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProductForm } from "@/components/products/product-form";
+import { toast } from "sonner";
 import {
   Plus,
   Search,
@@ -37,7 +40,49 @@ import {
   PackageOpen,
 } from "lucide-react";
 import { productsService } from "@/services/products.service";
-import type { Product } from "@/services/products.service";
+import type {
+  Product,
+  ProductPayload,
+  ColorWithSizes,
+} from "@/services/products.service";
+
+function AddProductDialog({ onCreated }: { onCreated: () => void }) {
+  const { setOpen } = useDialogContext();
+  const [dialogKey, setDialogKey] = useState(0);
+
+  const handleCreate = async (data: {
+    product: ProductPayload;
+    colors: ColorWithSizes[];
+  }) => {
+    await productsService.createProductWithVariants(data);
+  };
+
+  const handleCreated = () => {
+    setOpen(false);
+    setDialogKey((key) => key + 1);
+    toast.success("Product created");
+    onCreated();
+  };
+
+  return (
+    <>
+      <DialogTrigger className={buttonVariants()}>
+        <Plus className="h-4 w-4" />
+        Add Product
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Add Product</DialogTitle>
+        </DialogHeader>
+        <ProductForm
+          key={dialogKey}
+          onSubmit={handleCreate}
+          onSuccess={handleCreated}
+        />
+      </DialogContent>
+    </>
+  );
+}
 
 export default function ProductsPage() {
   const router = useRouter();
@@ -106,12 +151,9 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-gray-950">Products</h1>
           <p className="text-gray-500">Manage your product catalog</p>
         </div>
-        <Link href="/products/new">
-          <Button>
-            <Plus className="h-4 w-4" />
-            Add Product
-          </Button>
-        </Link>
+        <Dialog>
+          <AddProductDialog onCreated={fetchProducts} />
+        </Dialog>
       </div>
 
       <div className="flex items-center gap-4">
@@ -163,12 +205,11 @@ export default function ProductsPage() {
                   : "Get started by creating your first product"}
               </p>
               {!search && (
-                <Link href="/products/new" className="mt-4">
-                  <Button>
-                    <Plus className="h-4 w-4" />
-                    Add Product
-                  </Button>
-                </Link>
+                <div className="mt-4">
+                  <Dialog>
+                    <AddProductDialog onCreated={fetchProducts} />
+                  </Dialog>
+                </div>
               )}
             </div>
           ) : (

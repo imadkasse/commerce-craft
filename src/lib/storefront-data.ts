@@ -62,31 +62,30 @@ export async function loadStorefrontData(params: {
       name: products.name,
       price: products.price,
       images: products.images,
-      landingPageId: products.landingPageId,
     })
     .from(products)
     .where(and(eq(products.storeId, store.id), eq(products.isActive, true)))
     .orderBy(desc(products.createdAt))
     .limit(24);
 
-  const landingPageIds = storeProducts
-    .map((product) => product.landingPageId)
-    .filter((id): id is string => Boolean(id));
+  const productIds = storeProducts.map((product) => product.id);
 
   const landingSlugs = new Map<string, string>();
-  if (landingPageIds.length > 0) {
+  if (productIds.length > 0) {
     const publishedPages = await db
-      .select({ id: landingPages.id, slug: landingPages.slug })
+      .select({ productId: landingPages.productId, slug: landingPages.slug })
       .from(landingPages)
       .where(
         and(
-          inArray(landingPages.id, landingPageIds),
+          inArray(landingPages.productId, productIds),
           eq(landingPages.status, "published")
         )
       );
 
     for (const page of publishedPages) {
-      landingSlugs.set(page.id, page.slug);
+      if (page.productId) {
+        landingSlugs.set(page.productId, page.slug);
+      }
     }
   }
 
@@ -97,10 +96,8 @@ export async function loadStorefrontData(params: {
       name: product.name,
       price: formatPrice(product.price),
       image: product.images?.[0] ?? null,
-      landingPageUrl: product.landingPageId
-        ? landingSlugs.has(product.landingPageId)
-          ? `/lp/${landingSlugs.get(product.landingPageId)}`
-          : null
+      landingPageUrl: landingSlugs.get(product.id)
+        ? `/lp/${landingSlugs.get(product.id)}`
         : null,
     })),
   };

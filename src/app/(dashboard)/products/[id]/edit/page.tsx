@@ -23,18 +23,26 @@ export default function EditProductPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       try {
         const data = await productsService.getProductWithColors(id);
+        if (cancelled) return;
         setProduct(data.product);
         setColors(data.colors);
       } catch (err) {
+        if (cancelled) return;
         setError(err instanceof Error ? err.message : "Failed to load product");
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const handleSubmit = async (data: {

@@ -22,8 +22,9 @@ function Sheet({
   ...props
 }: { children: React.ReactNode; side?: "left" | "right" | "top" | "bottom" }) {
   const [open, setOpen] = React.useState(false);
+  const value = React.useMemo(() => ({ open, setOpen, side }), [open, side]);
   return (
-    <SheetContext.Provider value={{ open, setOpen, side }}>
+    <SheetContext.Provider value={value}>
       <div {...props}>{children}</div>
     </SheetContext.Provider>
   );
@@ -63,8 +64,10 @@ function SheetContent({ children, className, ...props }: React.HTMLAttributes<HT
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 bg-black/50"
+      <button
+        type="button"
+        className="fixed inset-0 z-50 cursor-default border-0 bg-black/50 p-0 text-left"
+        aria-label="Close"
         onClick={() => setOpen(false)}
       />
       <div
@@ -78,6 +81,8 @@ function SheetContent({ children, className, ...props }: React.HTMLAttributes<HT
         <button
           className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-2"
           onClick={() => setOpen(false)}
+          type="button"
+          aria-label="Close"
         >
           <X className="h-4 w-4" />
         </button>

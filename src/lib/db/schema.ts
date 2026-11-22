@@ -95,6 +95,9 @@ export const landingPages = pgTable(
     storeId: uuid("store_id")
       .notNull()
       .references(() => stores.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").unique().references(() => products.id, {
+      onDelete: "cascade",
+    }),
     generatedCode: text("generated_code"),
     status: text("status", { enum: ["draft", "published"] })
       .notNull()
@@ -139,9 +142,6 @@ export const products = pgTable(
     storeId: uuid("store_id")
       .notNull()
       .references(() => stores.id, { onDelete: "cascade" }),
-    landingPageId: uuid("landing_page_id").references(() => landingPages.id, {
-      onDelete: "set null",
-    }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

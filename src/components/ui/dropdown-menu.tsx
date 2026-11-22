@@ -29,8 +29,11 @@ function DropdownMenuTrigger({ children, className, ...props }: React.ButtonHTML
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  const close = React.useCallback(() => setOpen(false), []);
+  const contextValue = React.useMemo(() => ({ close }), [close]);
+
   return (
-    <DropdownMenuContext.Provider value={{ close: () => setOpen(false) }}>
+    <DropdownMenuContext.Provider value={contextValue}>
       <div ref={ref} className="relative inline-block">
         <button
           className={cn("inline-flex items-center justify-center", className)}

@@ -33,13 +33,16 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    const result = await register(name, email, password);
-    setLoading(false);
+    try {
+      const result = await register(name, email, password);
 
-    if (result.error) {
-      setError(result.error);
-    } else {
-      router.push("/");
+      if (result.error) {
+        setError(result.error);
+      } else {
+        router.push("/");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 

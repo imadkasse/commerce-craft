@@ -13,83 +13,87 @@ export async function GET(_request: Request) {
 
     const storeId = session.storeId;
 
-    const [productCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(products)
-      .where(eq(products.storeId, storeId));
-
-    const [orderCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(orders)
-      .where(eq(orders.storeId, storeId));
-
-    const [revenueResult] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.storeId, storeId),
-          eq(orders.status, "delivered"),
-        )
-      );
-
-    const [landingPageCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(landingPages)
-      .where(
-        and(
-          eq(landingPages.storeId, storeId),
-          eq(landingPages.status, "published"),
-        )
-      );
-
-    const recentOrders = await db
-      .select({
-        id: orders.id,
-        orderNumber: orders.orderNumber,
-        customerName: orders.customerName,
-        total: orders.total,
-        status: orders.status,
-        createdAt: orders.createdAt,
-      })
-      .from(orders)
-      .where(eq(orders.storeId, storeId))
-      .orderBy(desc(orders.createdAt))
-      .limit(5);
-
-    const recentActivity = await db
-      .select({
-        id: activityLogs.id,
-        action: activityLogs.action,
-        details: activityLogs.details,
-        userName: users.name,
-        createdAt: activityLogs.createdAt,
-      })
-      .from(activityLogs)
-      .leftJoin(users, eq(activityLogs.userId, users.id))
-      .where(eq(activityLogs.storeId, storeId))
-      .orderBy(desc(activityLogs.createdAt))
-      .limit(10);
-
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     thirtyDaysAgo.setHours(0, 0, 0, 0);
 
-    const salesOverTime = await db
-      .select({
-        date: sql<string>`DATE(${orders.createdAt})`,
-        revenue: sql<string>`SUM(${orders.total})`,
-      })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.storeId, storeId),
-          eq(orders.status, "delivered"),
-          gte(orders.createdAt, thirtyDaysAgo),
+    const [
+      [productCount],
+      [orderCount],
+      [revenueResult],
+      [landingPageCount],
+      recentOrders,
+      recentActivity,
+      salesOverTime,
+    ] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(products)
+        .where(eq(products.storeId, storeId)),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(eq(orders.storeId, storeId)),
+      db
+        .select({ total: sql<string>`COALESCE(SUM(${orders.total}), 0)` })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.storeId, storeId),
+            eq(orders.status, "delivered"),
+          )
+        ),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(landingPages)
+        .where(
+          and(
+            eq(landingPages.storeId, storeId),
+            eq(landingPages.status, "published"),
+          )
+        ),
+      db
+        .select({
+          id: orders.id,
+          orderNumber: orders.orderNumber,
+          customerName: orders.customerName,
+          total: orders.total,
+          status: orders.status,
+          createdAt: orders.createdAt,
+        })
+        .from(orders)
+        .where(eq(orders.storeId, storeId))
+        .orderBy(desc(orders.createdAt))
+        .limit(5),
+      db
+        .select({
+          id: activityLogs.id,
+          action: activityLogs.action,
+          details: activityLogs.details,
+          userName: users.name,
+          createdAt: activityLogs.createdAt,
+        })
+        .from(activityLogs)
+        .leftJoin(users, eq(activityLogs.userId, users.id))
+        .where(eq(activityLogs.storeId, storeId))
+        .orderBy(desc(activityLogs.createdAt))
+        .limit(10),
+      db
+        .select({
+          date: sql<string>`DATE(${orders.createdAt})`,
+          revenue: sql<string>`SUM(${orders.total})`,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.storeId, storeId),
+            eq(orders.status, "delivered"),
+            gte(orders.createdAt, thirtyDaysAgo),
+          )
         )
-      )
-      .groupBy(sql`DATE(${orders.createdAt})`)
-      .orderBy(sql`DATE(${orders.createdAt})`);
+        .groupBy(sql`DATE(${orders.createdAt})`)
+        .orderBy(sql`DATE(${orders.createdAt})`),
+    ]);
 
     return NextResponse.json({
       totalProducts: Number(productCount?.count || 0),

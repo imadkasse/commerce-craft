@@ -55,25 +55,27 @@ export async function POST(request: Request) {
     const fieldMapping = config.fieldMapping as Record<string, string>;
     const headers = Object.keys(fieldMapping);
 
-    const rows = [];
+    const rows = await Promise.all(
+      ordersToSync.map(async (order) => {
+        const items = await db
+          .select()
+          .from(orderItems)
+          .where(eq(orderItems.orderId, order.id));
 
-    for (const order of ordersToSync) {
-      const items = await db
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, order.id));
-
-      rows.push(formatOrderRow(order, items, fieldMapping));
-    }
+        return formatOrderRow(order, items, fieldMapping);
+      })
+    );
 
     await appendRows(config.spreadsheetId, config.sheetName, headers, rows);
 
-    for (const order of ordersToSync) {
-      await db
-        .update(orders)
-        .set({ sheetsSynced: true })
-        .where(eq(orders.id, order.id));
-    }
+    await Promise.all(
+      ordersToSync.map((order) =>
+        db
+          .update(orders)
+          .set({ sheetsSynced: true })
+          .where(eq(orders.id, order.id))
+      )
+    );
 
     await db.insert(activityLogs).values({
       storeId,
