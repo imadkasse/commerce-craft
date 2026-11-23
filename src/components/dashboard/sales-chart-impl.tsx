@@ -1,6 +1,9 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// Loaded on demand: sales-chart.tsx pulls this module in via next/dynamic
+// (ssr: false), so recharts is not in the initial bundle.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface SalesChartImplProps {

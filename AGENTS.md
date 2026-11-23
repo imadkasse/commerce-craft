@@ -182,4 +182,6 @@ commercecraft/
 ````
 
 ## Instructions
-- for every change or adding features check the code with `tsc` and run `react doctor` skill
+- for every change or adding features check the code with `tsc` and run `react doctor` 
+- test the app by using chrome-devtools mcp
+- 

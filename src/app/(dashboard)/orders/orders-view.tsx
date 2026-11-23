@@ -12,8 +12,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ShoppingCart,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Package,
   Clock,
   Truck,
@@ -22,6 +20,7 @@ import {
   Filter,
 } from "lucide-react";
 import { ordersService, type Order, type OrderStats } from "@/services/orders.service";
+import { OrdersPagination } from "./orders-view-parts";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   pending: "outline",
@@ -295,31 +294,13 @@ export function OrdersView({ initial }: OrdersViewProps) {
       </Card>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            Page {page} of {totalPages} ({total} orders)
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <OrdersPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onPrevious={() => setPage((p) => p - 1)}
+          onNext={() => setPage((p) => p + 1)}
+        />
       )}
     </div>
   );

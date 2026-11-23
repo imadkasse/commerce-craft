@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,22 +26,32 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
+      toast.error("Passwords do not match");
       return;
     }
     if (password.length < 8) {
       setError("Password must be at least 8 characters");
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
     setLoading(true);
+    const toastId = toast.loading("Creating your account...");
     try {
       const result = await register(name, email, password);
 
       if (result.error) {
         setError(result.error);
+        toast.error(result.error, { id: toastId });
       } else {
+        toast.success("Account created!", {
+          id: toastId,
+          description: "Taking you to your dashboard...",
+        });
         router.push("/");
       }
+    } catch {
+      toast.error("Something went wrong. Please try again.", { id: toastId });
     } finally {
       setLoading(false);
     }

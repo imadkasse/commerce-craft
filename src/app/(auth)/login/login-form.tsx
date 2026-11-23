@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,17 +30,26 @@ export function LoginForm() {
     setError("");
     setLoading(true);
 
+    const toastId = toast.loading("Signing you in...");
+
     try {
       const result = await login(email, password);
 
       if (result.error) {
         setError(result.error);
+        toast.error(result.error, { id: toastId });
       } else {
+        toast.success("Welcome back!", {
+          id: toastId,
+          description: "Redirecting to your dashboard...",
+        });
         const redirect =
           new URL(window.location.href).searchParams.get("redirect") ||
           "/dashboard";
         router.push(redirect);
       }
+    } catch {
+      toast.error("Something went wrong. Please try again.", { id: toastId });
     } finally {
       setLoading(false);
     }

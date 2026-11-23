@@ -331,6 +331,9 @@ export async function createProductWithVariants({
       if (createdColor && color.sizes.length > 0) {
         for (const size of color.sizes) {
           try {
+            // Sequential on purpose: the API assigns sortOrder by insertion order,
+            // so parallel creation would scramble it. Size failures are ignored by design.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop
             await createSize(created.id, {
               colorId: createdColor.id,
               sizeLabel: size.sizeLabel,
@@ -363,6 +366,9 @@ export async function updateProductVariants(
     for (const color of colors) {
       if (color.id) {
         try {
+          // Sequential on purpose: the API assigns sortOrder by insertion order,
+          // so parallel creation would scramble it. Color failures are ignored by design.
+          // react-doctor-disable-next-line react-doctor/async-await-in-loop
           await createColor(id, {
             name: color.name,
             hexCode: color.hexCode,
@@ -376,6 +382,9 @@ export async function updateProductVariants(
       for (const size of color.sizes) {
         if (!size.id) {
           try {
+            // Sequential on purpose: the API assigns sortOrder by insertion order,
+            // so parallel creation would scramble it. Size failures are ignored by design.
+            // react-doctor-disable-next-line react-doctor/async-await-in-loop
             await createSize(id, {
               colorId: color.id,
               sizeLabel: size.sizeLabel,

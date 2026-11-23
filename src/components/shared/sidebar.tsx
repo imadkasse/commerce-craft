@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
+import { useAuthStore } from "@/store/auth";
 import {
   LayoutDashboard,
   Package,
@@ -15,6 +17,7 @@ import {
   Users,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
 
 const navItems = [
@@ -31,6 +34,26 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, toggleSidebar, setSidebarOpen } = useUIStore();
+  const logout = useAuthStore((s) => s.logout);
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = React.useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    const toastId = toast.loading("Signing out...");
+    try {
+      await logout();
+      toast.success("Signed out", { id: toastId });
+      router.replace("/login");
+      // Server components re-read the cleared cookie.
+      router.refresh();
+    } catch {
+      toast.error("Could not sign out. Please try again.", { id: toastId });
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <>
@@ -76,7 +99,7 @@ export function Sidebar() {
             const isActive =
               item.href === "/"
                 ? pathname === "/"
-                : pathname === item.href || pathname.startsWith(item.href + "/");
+                : pathname === item.href 
             return (
               <Link
                 key={item.href}
@@ -100,6 +123,15 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="border-t border-gray-800 px-6 py-4">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="mb-3 flex w-full items-center justify-start gap-3 rounded-lg px-0 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200 disabled:opacity-60"
+          >
+            <LogOut className="h-5 w-5 shrink-0" />
+            {loggingOut ? "Signing out..." : "Log out"}
+          </button>
           <p className="text-xs text-gray-500">CommerceCraft v0.1.0</p>
         </div>
       </aside>

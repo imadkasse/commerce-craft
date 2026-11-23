@@ -52,9 +52,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     try {
       await authService.logout();
+    } catch {
+      // Ignore transport errors: the client session is cleared regardless.
     } finally {
       set({ user: null, store: null });
-      window.location.href = "/login";
     }
   },
 

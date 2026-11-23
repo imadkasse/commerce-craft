@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { Bell, Search } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { StoreSwitcher } from "@/components/shared/store-switcher";
+import { UserMenu } from "@/components/shared/user-menu";
 
 export function Navbar() {
   return (
@@ -24,13 +24,7 @@ export function Navbar() {
       <StoreSwitcher />
 
       <div className="flex items-center gap-3 border-l border-line pl-4">
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium text-gray-900">Admin User</p>
-          <p className="text-xs text-gray-500">admin@commercecraft.io</p>
-        </div>
-        <Avatar>
-          <AvatarFallback>AU</AvatarFallback>
-        </Avatar>
+        <UserMenu />
       </div>
     </header>
   );
