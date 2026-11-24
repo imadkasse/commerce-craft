@@ -11,6 +11,7 @@
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { StoreTheme } from "@/lib/store-theme";
+import type { Section } from "@/lib/ai/sections/schemas";
 
 // â”€â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -110,6 +111,7 @@ export const landingPages = pgTable(
       }>()
       .default({})
       .notNull(),
+    sections: jsonb("sections").$type<Section[]>().default([]).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,12 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+
+// GrapesJS needs `window`; load it client-side only.
+const GrapesjsEditor = dynamic(
+  () => import("@/components/landing-pages/grapesjs-editor"),
+  { ssr: false },
+);
 
 export function LandingPageEditorSkeleton() {
   return (
@@ -318,11 +325,8 @@ function CodePanel({
     <TabsContent value="code" className="space-y-4 pt-4">
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="code-editor">HTML Code</Label>
+          <Label>Visual Editor</Label>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">
-              {localCode.split("\n").length} lines
-            </span>
             <Button
               variant="outline"
               size="sm"
@@ -343,13 +347,16 @@ function CodePanel({
             </Button>
           </div>
         </div>
-        <textarea
-          id="code-editor"
-          value={localCode}
-          onChange={(e) => onLocalCodeChange(e.target.value)}
-          className="min-h-[400px] w-full resize-y rounded-lg border border-gray-300 bg-gray-950 px-3 py-2 font-mono text-sm leading-relaxed text-green-400 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          spellCheck={false}
-        />
+        <div className="overflow-hidden rounded-lg border border-gray-300">
+          <GrapesjsEditor
+            initialHtml={localCode}
+            onHtmlChange={onLocalCodeChange}
+          />
+        </div>
+        <p className="text-xs text-gray-400">
+          Edit the page visually. Changes sync to the preview and are saved to
+          the database.
+        </p>
         <div className="flex items-center gap-2">
           <Button
             size="sm"

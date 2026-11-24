@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { products, landingPages, productColors, productSizes, activityLogs } from "@/lib/db/schema";
 import { getTokenFromRequest } from "@/lib/auth/session";
 import { eq, and } from "drizzle-orm";
-import { generateLandingPageHTML } from "@/lib/ai/gemini";
+import { generateSections } from "@/lib/ai/agent";
+import { compileSections } from "@/lib/ai/sections/compiler";
 
 function generateSlug(name: string): string {
   return name
@@ -61,20 +62,20 @@ export async function POST(request: Request) {
       }[];
     }
 
-    const html = await generateLandingPageHTML(
-      {
-        name: product.name,
-        description: product.description || "",
-        price: String(product.price),
-        compareAtPrice: product.compareAtPrice ? String(product.compareAtPrice) : undefined,
-        images: product.images,
-        tags: product.tags,
-        type: product.type as "CLOTHING" | "GENERAL",
-        colors,
-        sizes,
-      },
-      marketingAngles
-    );
+    const productData = {
+      name: product.name,
+      description: product.description || "",
+      price: String(product.price),
+      compareAtPrice: product.compareAtPrice ? String(product.compareAtPrice) : undefined,
+      images: product.images,
+      tags: product.tags,
+      type: product.type as "CLOTHING" | "GENERAL",
+      colors,
+      sizes,
+    };
+
+    const { sections } = await generateSections({ product: productData, marketingAngles });
+    const { html } = compileSections(sections);
 
     const slug = generateSlug(product.name) + "-" + Date.now().toString(36);
 
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
         generatedCode: html,
         status: "draft",
         customizations: {},
+        sections,
       })
       .returning();
 
@@ -105,6 +107,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ landingPage }, { status: 201 });
   } catch (error) {
     console.error("Generate page error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to generate landing page" },
+      { status: 500 },
+    );
   }
 }
