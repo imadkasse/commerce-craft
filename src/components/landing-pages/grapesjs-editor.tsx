@@ -10,6 +10,9 @@ const GOOGLE_FONTS_URL =
 
 const FALLBACK_TITLE = "صفحة المنتج";
 
+/** Fallback height when the measured container height is not available yet. */
+const FALLBACK_HEIGHT = 560;
+
 export interface GrapesjsEditorProps {
   /** Full standalone `generatedCode` HTML document. */
   initialHtml: string;
@@ -131,6 +134,12 @@ export default function GrapesjsEditor({
   initialHtml,
   onHtmlChange,
 }: GrapesjsEditorProps) {
+  // `wrapperRef` fills the parent (which must have a definite height); we
+  // measure it to give grapesjs a concrete pixel height. grapesjs writes its
+  // `height` config as an inline style on the container, which would override
+  // any `h-[...]` class and collapse against an auto-height parent if we passed
+  // a percentage like "100%".
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const onHtmlChangeRef = useRef(onHtmlChange);
   const dirtyRef = useRef(false);
@@ -148,14 +157,22 @@ export default function GrapesjsEditor({
   // subsequent `initialHtml` changes (the parent mirroring our own edits) must
   // not destroy/recreate the editor.
   useEffect(() => {
+    const wrapper = wrapperRef.current;
     const container = containerRef.current;
-    if (!container) return;
+    if (!wrapper || !container) return;
 
     const parsed = parseDocument(initialHtmlRef.current);
 
+    const measureHeight = () => {
+      const h = wrapper.clientHeight;
+      return h > 0 ? h : FALLBACK_HEIGHT;
+    };
+
     const editor: Editor = grapesjs.init({
       container,
-      height: "100%",
+      // A definite pixel height (not "100%") so `.gjs-editor`/`.gjs-cv-canvas`
+      // resolve to a non-zero offsetHeight even if the wrapper is still settling.
+      height: `${measureHeight()}px`,
       width: "100%",
       storageManager: false,
       fromElement: false,
@@ -170,6 +187,16 @@ export default function GrapesjsEditor({
 
     editor.setStyle(parsed.css);
     editor.setComponents(parsed.bodyHtml);
+
+    // Keep the editor height glued to the wrapper's layout height (window
+    // resize, view toggling, etc.). `.gjs-editor` is 100% of the container, so
+    // updating the container's inline height resizes the canvas automatically.
+    const resizeObserver = new ResizeObserver(() => {
+      const h = measureHeight();
+      container.style.height = `${h}px`;
+      editor.refresh();
+    });
+    resizeObserver.observe(wrapper);
 
     const serialize = (): string | null => {
       try {
@@ -212,6 +239,7 @@ export default function GrapesjsEditor({
     return () => {
       clearTimeout(readyTimer);
       if (timerRef.current) clearTimeout(timerRef.current);
+      resizeObserver.disconnect();
       // Flush uncommitted edits before destroying so nothing is lost when the
       // tab unmounts (the TabsContent here unmounts inactive panels).
       if (dirtyRef.current) {
@@ -223,5 +251,9 @@ export default function GrapesjsEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={containerRef} className="h-[560px] w-full" />;
+  return (
+    <div ref={wrapperRef} className="h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+    </div>
+  );
 }

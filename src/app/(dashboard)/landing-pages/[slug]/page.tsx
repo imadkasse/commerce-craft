@@ -14,8 +14,11 @@ import {
   EditorHeader,
   EditorNotification,
   EditorSidebar,
+  EditorViewToggle,
   LandingPageEditorSkeleton,
   PreviewPanel,
+  VisualEditorPanel,
+  type EditorView,
 } from "./editor-parts";
 
 function buildPreviewHtml({
@@ -103,6 +106,7 @@ function LandingPageEditor() {
   const [localCode, setLocalCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [savingCode, setSavingCode] = useState(false);
+  const [view, setView] = useState<EditorView>("preview");
 
   const showNotification = (type: "success" | "error", message: string) => {
     setNotification({ type, message });
@@ -318,8 +322,25 @@ function LandingPageEditor() {
 
       <Separator />
 
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[1fr_320px]">
-        <PreviewPanel srcDoc={previewSrcDoc} />
+      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[1fr_320px] lg:grid-rows-[minmax(0,1fr)]">
+        <div className="flex min-h-0 flex-col gap-3">
+          <EditorViewToggle view={view} onViewChange={setView} />
+
+          <div className="min-h-0 flex-1">
+            {view === "preview" ? (
+              <PreviewPanel srcDoc={previewSrcDoc} />
+            ) : (
+              <VisualEditorPanel
+                localCode={localCode}
+                onLocalCodeChange={setLocalCode}
+                onCopyCode={handleCopyCode}
+                copied={copied}
+                savingCode={savingCode}
+                onSaveCode={handleSaveCode}
+              />
+            )}
+          </div>
+        </div>
 
         <EditorSidebar
           headline={headline}
@@ -334,12 +355,6 @@ function LandingPageEditor() {
             buttonStyle,
             onButtonStyleChange: setButtonStyle,
           }}
-          localCode={localCode}
-          onLocalCodeChange={setLocalCode}
-          onCopyCode={handleCopyCode}
-          copied={copied}
-          savingCode={savingCode}
-          onSaveCode={handleSaveCode}
           onRegenerate={handleRegenerate}
           regenerating={regenerating}
           canRegenerate={Boolean(product)}

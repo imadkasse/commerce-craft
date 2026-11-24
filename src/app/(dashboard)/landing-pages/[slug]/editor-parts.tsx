@@ -25,9 +25,10 @@ import {
   Palette,
   Type,
   Layout,
-  Code2,
   Copy,
   Check,
+  Eye,
+  PenLine,
 } from "lucide-react";
 
 // GrapesJS needs `window`; load it client-side only.
@@ -199,11 +200,11 @@ export function EditorHeader({
 
 export function PreviewPanel({ srcDoc }: { srcDoc: string }) {
   return (
-    <Card className="flex min-h-0 flex-col overflow-hidden">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
       <CardHeader className="flex shrink-0 flex-row items-center justify-between pb-3">
         <CardTitle className="text-sm font-medium">Preview</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 p-0">
+      <CardContent className="min-h-0 flex-1 p-0">
         <iframe
           sandbox="allow-scripts"
           srcDoc={srcDoc}
@@ -306,7 +307,40 @@ function DesignPanel({
   );
 }
 
-function CodePanel({
+export type EditorView = "preview" | "editor";
+
+export function EditorViewToggle({
+  view,
+  onViewChange,
+}: {
+  view: EditorView;
+  onViewChange: (view: EditorView) => void;
+}) {
+  return (
+    <div className="inline-flex shrink-0 items-center gap-0.5 self-start rounded-lg border border-line bg-surface p-0.5 shadow-sm">
+      <Button
+        variant={view === "preview" ? "default" : "ghost"}
+        size="sm"
+        className="h-7 gap-1.5 px-3"
+        onClick={() => onViewChange("preview")}
+      >
+        <Eye className="h-3.5 w-3.5" />
+        Preview
+      </Button>
+      <Button
+        variant={view === "editor" ? "default" : "ghost"}
+        size="sm"
+        className="h-7 gap-1.5 px-3"
+        onClick={() => onViewChange("editor")}
+      >
+        <PenLine className="h-3.5 w-3.5" />
+        Visual Editor
+      </Button>
+    </div>
+  );
+}
+
+export function VisualEditorPanel({
   localCode,
   onLocalCodeChange,
   onCopyCode,
@@ -322,45 +356,31 @@ function CodePanel({
   onSaveCode: () => void;
 }) {
   return (
-    <TabsContent value="code" className="space-y-4 pt-4">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label>Visual Editor</Label>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1.5 text-xs"
-              onClick={onCopyCode}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-green-500" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-        <div className="overflow-hidden rounded-lg border border-gray-300">
-          <GrapesjsEditor
-            initialHtml={localCode}
-            onHtmlChange={onLocalCodeChange}
-          />
-        </div>
-        <p className="text-xs text-gray-400">
-          Edit the page visually. Changes sync to the preview and are saved to
-          the database.
-        </p>
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden">
+      <CardHeader className="flex shrink-0 flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="text-sm font-medium">Visual Editor</CardTitle>
         <div className="flex items-center gap-2">
           <Button
+            variant="outline"
             size="sm"
-            className="w-full gap-1.5"
+            className="h-7 gap-1.5 text-xs"
+            onClick={onCopyCode}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-green-500" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                Copy
+              </>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
             onClick={onSaveCode}
             disabled={savingCode}
           >
@@ -372,13 +392,19 @@ function CodePanel({
             ) : (
               <>
                 <Save className="h-3.5 w-3.5" />
-                Save Code to Database
+                Save Code
               </>
             )}
           </Button>
         </div>
-      </div>
-    </TabsContent>
+      </CardHeader>
+      <CardContent className="min-h-0 flex-1 p-0">
+        <GrapesjsEditor
+          initialHtml={localCode}
+          onHtmlChange={onLocalCodeChange}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -441,12 +467,6 @@ export function EditorSidebar({
   headline,
   onHeadlineChange,
   design,
-  localCode,
-  onLocalCodeChange,
-  onCopyCode,
-  copied,
-  savingCode,
-  onSaveCode,
   onRegenerate,
   regenerating,
   canRegenerate,
@@ -455,12 +475,6 @@ export function EditorSidebar({
   headline: string;
   onHeadlineChange: (value: string) => void;
   design: DesignPanelProps;
-  localCode: string;
-  onLocalCodeChange: (value: string) => void;
-  onCopyCode: () => void;
-  copied: boolean;
-  savingCode: boolean;
-  onSaveCode: () => void;
   onRegenerate: () => void;
   regenerating: boolean;
   canRegenerate: boolean;
@@ -470,7 +484,7 @@ export function EditorSidebar({
     <Card className="flex min-h-0 flex-col overflow-hidden">
       <CardContent className="flex-1 overflow-y-auto p-4">
         <Tabs defaultValue="content">
-          <TabsList className="grid w-full grid-cols-4 gap-0 p-0.5">
+          <TabsList className="grid w-full grid-cols-3 gap-0 p-0.5">
             <TabsTrigger value="content" className="gap-1 px-1 text-xs">
               <Type className="h-3 w-3 shrink-0" />
               Content
@@ -478,10 +492,6 @@ export function EditorSidebar({
             <TabsTrigger value="design" className="gap-1 px-1 text-xs">
               <Palette className="h-3 w-3 shrink-0" />
               Design
-            </TabsTrigger>
-            <TabsTrigger value="code" className="gap-1 px-1 text-xs">
-              <Code2 className="h-3 w-3 shrink-0" />
-              Code
             </TabsTrigger>
             <TabsTrigger value="actions" className="gap-1 px-1 text-xs">
               <Layout className="h-3 w-3 shrink-0" />
@@ -495,15 +505,6 @@ export function EditorSidebar({
           />
 
           <DesignPanel {...design} />
-
-          <CodePanel
-            localCode={localCode}
-            onLocalCodeChange={onLocalCodeChange}
-            onCopyCode={onCopyCode}
-            copied={copied}
-            savingCode={savingCode}
-            onSaveCode={onSaveCode}
-          />
 
           <ActionsPanel
             onRegenerate={onRegenerate}
