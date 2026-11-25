@@ -21,7 +21,11 @@ import {
 /* Model configuration (module-level so it's easy to tweak)                   */
 /* -------------------------------------------------------------------------- */
 
-const MODEL_NAME = "gemini-3.8-flash";
+// gemini-2.5-flash is deprecated for NEW projects (returns 404). Current free-tier
+// models: gemini-3.8-flash (~20 req/day), gemini-3.6-flash (~20/day),
+// gemini-3.5-flash-lite (~500 req/day, lighter). Default to the most capable proven
+// model; override via GEMINI_MODEL env if you want more daily quota (e.g. gemini-3.5-flash-lite).
+const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const BRIEF_TEMPERATURE = 0.7;
 const COMPOSE_TEMPERATURE = 0.7;
 const CRITIC_TEMPERATURE = 0.2;
@@ -31,6 +35,8 @@ const API_KEY = process.env.GEMINI_API_KEY;
 function createModel(temperature: number): ChatGoogleGenerativeAI {
   return new ChatGoogleGenerativeAI({
     // NOTE: @langchain/google-genai names this field `model`, not `modelName`.
+    // The model name itself is overridable via the GEMINI_MODEL env var
+    // (see MODEL_NAME above).
     model: MODEL_NAME,
     apiKey: API_KEY,
     temperature,

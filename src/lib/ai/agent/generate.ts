@@ -21,6 +21,56 @@ const MAX_ITERATIONS = 3;
 /** Per-compose retry budget for LLM outputs that fail schema validation. */
 const MAX_COMPOSE_ATTEMPTS = 3;
 
+/**
+ * Retry budget for TRANSIENT provider errors (429/500/503, quota, overload,
+ * high-demand, …). Independent of the schema-validation retry above.
+ */
+const RETRY_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 1500;
+
+const TRANSIENT_STATUS_CODES = new Set<number>([429, 500, 503]);
+const TRANSIENT_MESSAGE_PATTERN =
+  /quota|demand|overload|exhaust|unavailable|timeout|429|503|500|resource_exhausted/i;
+
+/** Whether an error is transient (safe to retry) as opposed to fatal. */
+function isTransientError(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null | undefined)?.status;
+  if (typeof status === "number" && TRANSIENT_STATUS_CODES.has(status)) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return TRANSIENT_MESSAGE_PATTERN.test(message);
+}
+
+/**
+ * Invokes `fn`, retrying TRANSIENT errors up to `RETRY_ATTEMPTS` total attempts
+ * with exponential backoff (1.5s, then 3s). Non-transient errors are rethrown
+ * immediately. After exhausting attempts, the last (transient) error is
+ * rethrown.
+ */
+async function invokeWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientError(error)) {
+        throw error; // fatal: no retry
+      }
+      if (attempt < RETRY_ATTEMPTS) {
+        const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(
+          `[agent] transient LLM error (attempt ${attempt}/${RETRY_ATTEMPTS}), retrying in ${delayMs}ms:`,
+          error instanceof Error ? error.message : String(error),
+        );
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
+
 function formatZodError(error: unknown): string {
   if (
     error &&
@@ -54,13 +104,15 @@ async function composeSections(input: {
   let lastError: unknown = null;
   for (let attempt = 1; attempt <= MAX_COMPOSE_ATTEMPTS; attempt++) {
     try {
-      return await composeChain.invoke({
-        product: input.product,
-        marketingAngles: input.marketingAngles,
-        brief: input.brief,
-        previous: input.previous,
-        critique: input.critique,
-      });
+      return await invokeWithRetry(() =>
+        composeChain.invoke({
+          product: input.product,
+          marketingAngles: input.marketingAngles,
+          brief: input.brief,
+          previous: input.previous,
+          critique: input.critique,
+        }),
+      );
     } catch (error) {
       lastError = error;
       console.warn(
@@ -87,10 +139,12 @@ export async function generateSections(
   input: GenerateSectionsInput,
 ): Promise<GenerateSectionsResult> {
   // 1. Creative brief.
-  const brief = await briefChain.invoke({
-    product: input.product,
-    marketingAngles: input.marketingAngles,
-  });
+  const brief = await invokeWithRetry(() =>
+    briefChain.invoke({
+      product: input.product,
+      marketingAngles: input.marketingAngles,
+    }),
+  );
 
   // 2. First draft.
   let sections = await composeSections({
@@ -104,11 +158,13 @@ export async function generateSections(
   let iterations = 0;
   for (let i = 1; i <= MAX_ITERATIONS; i++) {
     iterations = i;
-    const critique = await criticChain.invoke({
-      product: input.product,
-      brief,
-      sections,
-    });
+    const critique = await invokeWithRetry(() =>
+      criticChain.invoke({
+        product: input.product,
+        brief,
+        sections,
+      }),
+    );
     finalCritique = critique;
 
     if (critique.pass) break;
