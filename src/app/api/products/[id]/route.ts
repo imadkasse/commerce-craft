@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { products, productColors, productSizes, landingPages } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and } from "drizzle-orm";
 
 export async function GET(
@@ -10,15 +13,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [product] = await db
       .select()
       .from(products)
-      .where(and(eq(products.id, id), eq(products.storeId, payload.storeId)));
+      .where(and(eq(products.id, id), eq(products.storeId, storeId)));
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -38,8 +39,7 @@ export async function GET(
 
     return NextResponse.json({ product, colors, sizes });
   } catch (error) {
-    console.error("Product GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
@@ -49,15 +49,13 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [existing] = await db
       .select({ id: products.id })
       .from(products)
-      .where(and(eq(products.id, id), eq(products.storeId, payload.storeId)));
+      .where(and(eq(products.id, id), eq(products.storeId, storeId)));
 
     if (!existing) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -100,8 +98,7 @@ export async function PUT(
 
     return NextResponse.json({ product: updated });
   } catch (error) {
-    console.error("Product PUT error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
@@ -111,15 +108,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [existing] = await db
       .select({ id: products.id })
       .from(products)
-      .where(and(eq(products.id, id), eq(products.storeId, payload.storeId)));
+      .where(and(eq(products.id, id), eq(products.storeId, storeId)));
 
     if (!existing) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -134,7 +129,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Product DELETE error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

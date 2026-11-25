@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders, orderItems, shippingConfig, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and } from "drizzle-orm";
-import { getProvider, isDemoMode } from "@/lib/services/shipping";
+import { getProvider } from "@/lib/services/shipping";
 
 export async function POST(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
+  try {
     const body = await request.json();
     const { orderId, provider: providerId } = body;
 
@@ -26,7 +31,7 @@ export async function POST(request: Request) {
     const [order] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, orderId), eq(orders.storeId, payload.storeId)));
+      .where(and(eq(orders.id, orderId), eq(orders.storeId, access.store.id)));
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
     const [config] = await db
       .select()
       .from(shippingConfig)
-      .where(eq(shippingConfig.storeId, payload.storeId));
+      .where(eq(shippingConfig.storeId, access.store.id));
 
     const providerConfig = config?.providers?.[providerId] || {};
 
@@ -102,8 +107,8 @@ export async function POST(request: Request) {
 
     // Log activity
     await db.insert(activityLogs).values({
-      userId: payload.userId,
-      storeId: payload.storeId,
+      userId: access.auth.user.id,
+      storeId: access.store.id,
       action: "order.shipped",
       details: {
         orderId,

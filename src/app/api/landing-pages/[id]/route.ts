@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { landingPages, products, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and } from "drizzle-orm";
 
 const VALID_STATUSES = ["draft", "published"] as const;
@@ -12,15 +15,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [landingPage] = await db
       .select()
       .from(landingPages)
-      .where(and(eq(landingPages.id, id), eq(landingPages.storeId, payload.storeId)));
+      .where(and(eq(landingPages.id, id), eq(landingPages.storeId, storeId)));
 
     if (!landingPage) {
       return NextResponse.json({ error: "Landing page not found" }, { status: 404 });
@@ -52,8 +53,7 @@ export async function GET(
 
     return NextResponse.json({ landingPage, product: linkedProduct });
   } catch (error) {
-    console.error("LandingPage GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
@@ -63,15 +63,13 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [existing] = await db
       .select()
       .from(landingPages)
-      .where(and(eq(landingPages.id, id), eq(landingPages.storeId, payload.storeId)));
+      .where(and(eq(landingPages.id, id), eq(landingPages.storeId, storeId)));
 
     if (!existing) {
       return NextResponse.json({ error: "Landing page not found" }, { status: 404 });
@@ -129,8 +127,8 @@ export async function PUT(
 
     if (newStatus && newStatus !== oldStatus) {
       await db.insert(activityLogs).values({
-        userId: payload.userId,
-        storeId: payload.storeId,
+        userId: access.auth.user.id,
+        storeId,
         action: "landing_page.status_updated",
         details: { landingPageId: id, title: existing.title, oldStatus, newStatus },
       });
@@ -138,8 +136,7 @@ export async function PUT(
 
     return NextResponse.json({ landingPage: updated });
   } catch (error) {
-    console.error("LandingPage PUT error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
@@ -149,15 +146,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [existing] = await db
       .select({ id: landingPages.id, title: landingPages.title })
       .from(landingPages)
-      .where(and(eq(landingPages.id, id), eq(landingPages.storeId, payload.storeId)));
+      .where(and(eq(landingPages.id, id), eq(landingPages.storeId, storeId)));
 
     if (!existing) {
       return NextResponse.json({ error: "Landing page not found" }, { status: 404 });
@@ -166,15 +161,14 @@ export async function DELETE(
     await db.delete(landingPages).where(eq(landingPages.id, id));
 
     await db.insert(activityLogs).values({
-      userId: payload.userId,
-      storeId: payload.storeId,
+      userId: access.auth.user.id,
+      storeId,
       action: "landing_page.deleted",
       details: { landingPageId: id, title: existing.title },
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("LandingPage DELETE error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { products, orders, orderItems, landingPages, activityLogs, users } from "@/lib/db/schema";
-import { getSession } from "@/lib/auth/session";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { products, orders, landingPages, activityLogs, users } from "@/lib/db/schema";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
+import { eq, and, desc, sql, gte } from "drizzle-orm";
 
-export async function GET(_request: Request) {
+export async function GET(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const session = await getSession();
-    if (!session?.storeId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
-    const storeId = session.storeId;
+  try {
+    const storeId = access.store.id;
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

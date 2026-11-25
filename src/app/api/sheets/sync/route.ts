@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders, orderItems, sheetsConfig, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and, inArray } from "drizzle-orm";
-import { formatOrderRow, appendRows, isSheetsConfigured } from "@/lib/services/google-sheets";
+import { formatOrderRow, appendRows } from "@/lib/services/google-sheets";
 
 export async function POST(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const token = await getTokenFromRequest(request);
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
-    const storeId = token.storeId as string;
+  try {
+    const storeId = access.store.id;
 
     const [config] = await db
       .select()

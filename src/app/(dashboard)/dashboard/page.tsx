@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth/session";
+import { requirePageActiveStore } from "@/lib/auth/guards";
 import { dashboardService } from "@/services/dashboard.service";
 import { Package, ShoppingCart, FileText, TrendingUp } from "lucide-react";
 import { StatsCard } from "@/components/dashboard/stats-card";
@@ -8,8 +7,7 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { RecentOrdersWidget } from "@/components/dashboard/recent-orders";
 
 export default async function DashboardPage() {
-  const session = await getSession();
-  if (!session?.storeId) redirect("/login");
+  const access = await requirePageActiveStore("/dashboard");
 
   const {
     totalProducts,
@@ -19,13 +17,13 @@ export default async function DashboardPage() {
     recentOrders,
     recentActivity,
     salesOverTime,
-  } = await dashboardService.getDashboardOverview(session.storeId);
+  } = await dashboardService.getDashboardOverview(access.store.id);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-950">Dashboard</h1>
-        <p className="text-gray-500">Welcome back, {session.email}</p>
+        <p className="text-gray-500">Welcome back, {access.auth.user.email}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

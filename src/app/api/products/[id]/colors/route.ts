@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { products, productColors } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
-import { eq, and, desc } from "drizzle-orm";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(
   request: Request,
@@ -10,15 +13,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [product] = await db
       .select({ id: products.id })
       .from(products)
-      .where(and(eq(products.id, id), eq(products.storeId, payload.storeId)));
+      .where(and(eq(products.id, id), eq(products.storeId, storeId)));
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -32,8 +33,7 @@ export async function GET(
 
     return NextResponse.json({ colors });
   } catch (error) {
-    console.error("Colors GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
@@ -43,15 +43,13 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const [product] = await db
       .select({ id: products.id })
       .from(products)
-      .where(and(eq(products.id, id), eq(products.storeId, payload.storeId)));
+      .where(and(eq(products.id, id), eq(products.storeId, storeId)));
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -76,7 +74,6 @@ export async function POST(
 
     return NextResponse.json({ color: newColor }, { status: 201 });
   } catch (error) {
-    console.error("Colors POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

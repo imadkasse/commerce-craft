@@ -1,41 +1,48 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { stores } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  ForbiddenError,
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store found" }, { status: 404 });
-    }
+    const access = await requireActiveStore(request);
 
-    const results = await db.select().from(stores).where(eq(stores.id, payload.storeId));
-    if (results.length === 0) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ store: results[0] });
+    return NextResponse.json({ store: access.store });
   } catch (error) {
-    console.error("Store GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store found" }, { status: 404 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const body = await request.json();
     const { name, slug, description, logoUrl, domain, theme } = body;
 
+    const protectedFields = ["name", "slug", "domain"];
+    const wantsIdentityChange = protectedFields.some(
+      (field) => body[field] !== undefined,
+    );
+    if (
+      wantsIdentityChange &&
+      access.auth.user.role !== "SUPERADMIN" &&
+      !access.isOwner
+    ) {
+      throw new ForbiddenError(
+        "Only the store owner or a super admin can update these fields",
+      );
+    }
+
     if (slug) {
       const existing = await db.select().from(stores).where(eq(stores.slug, slug));
-      if (existing.length > 0 && existing[0].id !== payload.storeId) {
+      if (existing.length > 0 && existing[0].id !== storeId) {
         return NextResponse.json({ error: "Slug is already taken" }, { status: 409 });
       }
     }
@@ -51,12 +58,11 @@ export async function PUT(request: Request) {
     const [updated] = await db
       .update(stores)
       .set(updateData)
-      .where(eq(stores.id, payload.storeId))
+      .where(eq(stores.id, storeId))
       .returning();
 
     return NextResponse.json({ store: updated });
   } catch (error) {
-    console.error("Store PUT error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

@@ -1,20 +1,25 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { shippingConfig } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq } from "drizzle-orm";
 
 export async function GET(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store found" }, { status: 404 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
+  try {
     const results = await db
       .select()
       .from(shippingConfig)
-      .where(eq(shippingConfig.storeId, payload.storeId));
+      .where(eq(shippingConfig.storeId, access.store.id));
 
     if (results.length === 0) {
       return NextResponse.json({ config: null });
@@ -28,19 +33,21 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store found" }, { status: 404 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
+  try {
     const body = await request.json();
     const { defaultProvider, providers, rates } = body;
 
     const existing = await db
       .select()
       .from(shippingConfig)
-      .where(eq(shippingConfig.storeId, payload.storeId));
+      .where(eq(shippingConfig.storeId, access.store.id));
 
     let saved;
     if (existing.length > 0) {
@@ -52,13 +59,13 @@ export async function POST(request: Request) {
           rates: rates ?? [],
           updatedAt: new Date(),
         })
-        .where(eq(shippingConfig.storeId, payload.storeId))
+        .where(eq(shippingConfig.storeId, access.store.id))
         .returning();
     } else {
       [saved] = await db
         .insert(shippingConfig)
         .values({
-          storeId: payload.storeId,
+          storeId: access.store.id,
           defaultProvider,
           providers: providers ?? {},
           rates: rates ?? [],

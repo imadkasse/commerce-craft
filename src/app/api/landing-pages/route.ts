@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { landingPages, products, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and, desc, like, sql } from "drizzle-orm";
 
 function slugify(text: string): string {
@@ -19,10 +22,8 @@ function generateUniqueSlug(): string {
 
 export async function GET(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search");
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const limit = parseInt(url.searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    const conditions = [eq(landingPages.storeId, payload.storeId)];
+    const conditions = [eq(landingPages.storeId, storeId)];
     if (search) {
       conditions.push(like(landingPages.title, `%${search}%`));
     }
@@ -67,17 +68,14 @@ export async function GET(request: Request) {
       limit,
     });
   } catch (error) {
-    console.error("LandingPages GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const body = await request.json();
     const { title, slug: providedSlug, productId } = body;
@@ -105,21 +103,20 @@ export async function POST(request: Request) {
       .values({
         slug,
         title: title.trim(),
-        storeId: payload.storeId,
+        storeId,
         productId: productId ?? null,
       })
       .returning();
 
     await db.insert(activityLogs).values({
-      userId: payload.userId,
-      storeId: payload.storeId,
+      userId: access.auth.user.id,
+      storeId,
       action: "landing_page.created",
       details: { landingPageId: newLandingPage.id, title: newLandingPage.title, slug: newLandingPage.slug },
     });
 
     return NextResponse.json({ landingPage: newLandingPage }, { status: 201 });
   } catch (error) {
-    console.error("LandingPages POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

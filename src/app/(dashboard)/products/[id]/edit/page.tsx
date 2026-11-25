@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { getSession } from "@/lib/auth/session";
+import { requirePageActiveStore } from "@/lib/auth/guards";
 import { getProductForStore } from "@/lib/server/products";
 import { EditProductView } from "./edit-product-view";
 
@@ -11,10 +10,10 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [session, { id }] = await Promise.all([getSession(), params]);
-  if (!session?.storeId) redirect("/login");
+  const { id } = await params;
+  const access = await requirePageActiveStore(`/products/${id}/edit`);
 
-  const data = await getProductForStore(session.storeId, id);
+  const data = await getProductForStore(access.store.id, id);
 
   if (!data) {
     return (

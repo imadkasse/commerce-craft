@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { products, landingPages, productColors, productSizes, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and } from "drizzle-orm";
 import { generateSections } from "@/lib/ai/agent";
 import { compileSections } from "@/lib/ai/sections/compiler";
@@ -16,12 +19,14 @@ function generateSlug(name: string): string {
 }
 
 export async function POST(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
+  try {
     const body = await request.json();
     const { productId, marketingAngles } = body;
 
@@ -32,7 +37,7 @@ export async function POST(request: Request) {
     const [product] = await db
       .select()
       .from(products)
-      .where(and(eq(products.id, productId), eq(products.storeId, payload.storeId)));
+      .where(and(eq(products.id, productId), eq(products.storeId, access.store.id)));
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
       .values({
         slug,
         title: product.name,
-        storeId: payload.storeId,
+        storeId: access.store.id,
         productId: product.id,
         generatedCode: html,
         status: "draft",
@@ -94,8 +99,8 @@ export async function POST(request: Request) {
       .returning();
 
     await db.insert(activityLogs).values({
-      userId: payload.userId,
-      storeId: payload.storeId,
+      userId: access.auth.user.id,
+      storeId: access.store.id,
       action: "landing_page_generated",
       details: {
         productId: product.id,

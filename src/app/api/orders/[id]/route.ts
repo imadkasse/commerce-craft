@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders, orderItems, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and } from "drizzle-orm";
 
 const VALID_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
@@ -10,17 +13,20 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
+  try {
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
+
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
 
     const [order] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, id), eq(orders.storeId, payload.storeId)));
+      .where(and(eq(orders.id, id), eq(orders.storeId, access.store.id)));
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -42,17 +48,20 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
+  try {
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
+
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
 
     const [existing] = await db
       .select()
       .from(orders)
-      .where(and(eq(orders.id, id), eq(orders.storeId, payload.storeId)));
+      .where(and(eq(orders.id, id), eq(orders.storeId, access.store.id)));
 
     if (!existing) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -88,16 +97,16 @@ export async function PUT(
 
     if (newStatus && newStatus !== oldStatus) {
       await db.insert(activityLogs).values({
-        userId: payload.userId,
-        storeId: payload.storeId,
+        userId: access.auth.user.id,
+        storeId: access.store.id,
         action: "order.status_updated",
         details: { orderId: id, orderNumber: existing.orderNumber, oldStatus, newStatus },
       });
 
       if (newStatus === "shipped" && trackingCode) {
         await db.insert(activityLogs).values({
-          userId: payload.userId,
-          storeId: payload.storeId,
+          userId: access.auth.user.id,
+          storeId: access.store.id,
           action: "order.shipped",
           details: { orderId: id, orderNumber: existing.orderNumber, trackingCode },
         });
@@ -115,17 +124,20 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
+  try {
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
+
   try {
     const { id } = await params;
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
 
     const [existing] = await db
       .select({ id: orders.id, orderNumber: orders.orderNumber })
       .from(orders)
-      .where(and(eq(orders.id, id), eq(orders.storeId, payload.storeId)));
+      .where(and(eq(orders.id, id), eq(orders.storeId, access.store.id)));
 
     if (!existing) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -135,8 +147,8 @@ export async function DELETE(
     await db.delete(orders).where(eq(orders.id, id));
 
     await db.insert(activityLogs).values({
-      userId: payload.userId,
-      storeId: payload.storeId,
+      userId: access.auth.user.id,
+      storeId: access.store.id,
       action: "order.deleted",
       details: { orderId: id, orderNumber: existing.orderNumber },
     });

@@ -8,6 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "seed:products": "node scripts/seed-products.mjs",
+    "auth:backfill:dry-run": "tsx scripts/backfill-better-auth-credentials.ts --dry-run",
+    "auth:backfill:apply": "tsx scripts/backfill-better-auth-credentials.ts --apply",
+    "auth:backfill:verify": "tsx scripts/backfill-better-auth-credentials.ts --verify",
+    "test:auth": "tsx --test --experimental-test-module-mocks src/lib/auth/guards.test.ts src/lib/auth/provisioning.test.ts src/app/api/team/route.test.ts src/app/api/auth/register/route.test.ts",
     "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
@@ -16,6 +20,7 @@
     "@langchain/core": "^1.5.1",
     "@langchain/google-genai": "^2.3.7",
     "bcryptjs": "^3.0.3",
+    "better-auth": "^1.7.28",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
@@ -27,6 +32,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.10.1",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.6.7",

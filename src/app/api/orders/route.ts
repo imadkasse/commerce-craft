@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders, orderItems, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and, desc, like, sql, or, gte, lte } from "drizzle-orm";
 
 export async function GET(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
+
+  try {
+    const storeId = access.store.id;
 
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
@@ -20,7 +27,7 @@ export async function GET(request: Request) {
     const dateTo = url.searchParams.get("dateTo");
     const offset = (page - 1) * limit;
 
-    const conditions = [eq(orders.storeId, payload.storeId)];
+    const conditions = [eq(orders.storeId, storeId)];
     if (status) {
       conditions.push(eq(orders.status, status as "pending" | "confirmed" | "shipped" | "delivered" | "cancelled"));
     }
@@ -69,11 +76,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
+
+  try {
+    const storeId = access.store.id;
 
     const body = await request.json();
     const { customerName, customerPhone, customerAddress, customerCity, notes, total, items } = body;
@@ -97,7 +108,7 @@ export async function POST(request: Request) {
         customerCity: customerCity?.trim() || null,
         notes: notes || null,
         total: String(total),
-        storeId: payload.storeId,
+        storeId,
       })
       .returning();
 
@@ -116,8 +127,8 @@ export async function POST(request: Request) {
     const createdItems = await db.insert(orderItems).values(orderItemsData).returning();
 
     await db.insert(activityLogs).values({
-      userId: payload.userId,
-      storeId: payload.storeId,
+      userId: access.auth.user.id,
+      storeId,
       action: "order.created",
       details: { orderId: newOrder.id, orderNumber, total, itemCount: items.length },
     });

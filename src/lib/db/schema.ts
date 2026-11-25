@@ -4,12 +4,14 @@
   text,
   timestamp,
   integer,
+  bigint,
   boolean,
   jsonb,
   numeric,
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { StoreTheme } from "@/lib/store-theme";
 import type { Section } from "@/lib/ai/sections/schemas";
 
@@ -22,11 +24,12 @@ export const users = pgTable(
       .primaryKey()
       .$defaultFn(() => crypto.randomUUID()),
     email: text("email").unique().notNull(),
-    passwordHash: text("password_hash").notNull(),
+    passwordHash: text("password_hash"),
     name: text("name").notNull(),
     role: text("role", { enum: ["SUPERADMIN", "ADMIN"] })
       .notNull()
       .default("ADMIN"),
+    emailVerified: boolean("email_verified").default(false).notNull(),
     avatarUrl: text("avatar_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -355,4 +358,96 @@ export const shippingConfig = pgTable(
   (t) => [uniqueIndex("shipping_config_store_id_idx").on(t.storeId)],
 );
 
+// ─── Better Auth: accounts ───────────────────────────────────────────────────
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("accounts_user_id_idx").on(t.userId),
+    uniqueIndex("accounts_provider_account_idx").on(
+      t.providerId,
+      t.accountId,
+    ),
+    uniqueIndex("accounts_credential_user_idx")
+      .on(t.userId)
+      .where(sql`${t.providerId} = 'credential'`),
+  ],
+);
+
+// ─── Better Auth: sessions ───────────────────────────────────────────────────
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    activeStoreId: uuid("active_store_id").references(() => stores.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [index("sessions_user_id_idx").on(t.userId), index("sessions_token_idx").on(t.token)],
+);
+
+// ─── Better Auth: verifications ─────────────────────────────────────────────
+
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("verifications_identifier_idx").on(t.identifier)],
+);
+
+// ─── Better Auth: rate_limits ────────────────────────────────────────────────
+
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    key: text("key").notNull().unique(),
+    count: integer("count").notNull(),
+    lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("rate_limits_key_idx").on(t.key)],
+);
 

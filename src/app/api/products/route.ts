@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { products, productColors, productSizes } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import { products } from "@/lib/db/schema";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and, desc, like, sql } from "drizzle-orm";
 
 function generateSlug(name: string): string {
@@ -10,10 +13,8 @@ function generateSlug(name: string): string {
 
 export async function GET(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const url = new URL(request.url);
     const type = url.searchParams.get("type");
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     const limit = parseInt(url.searchParams.get("limit") || "20");
     const offset = (page - 1) * limit;
 
-    const conditions = [eq(products.storeId, payload.storeId)];
+    const conditions = [eq(products.storeId, storeId)];
     if (type && (type === "CLOTHING" || type === "GENERAL")) {
       conditions.push(eq(products.type, type));
     }
@@ -52,17 +53,14 @@ export async function GET(request: Request) {
       limit,
     });
   } catch (error) {
-    console.error("Products GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    const access = await requireActiveStore(request);
+    const storeId = access.store.id;
 
     const body = await request.json();
     const { name, description, type, price, compareAtPrice, images, tags, stockQuantity } = body;
@@ -89,13 +87,12 @@ export async function POST(request: Request) {
         images: images || [],
         tags: tags || [],
         stockQuantity: stockQuantity || 0,
-        storeId: payload.storeId,
+        storeId,
       })
       .returning();
 
     return NextResponse.json({ product: newProduct }, { status: 201 });
   } catch (error) {
-    console.error("Products POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

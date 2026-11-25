@@ -1,12 +1,10 @@
-import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth/session";
+import { requirePageActiveStore } from "@/lib/auth/guards";
 import { listProductsForStore } from "@/lib/server/products";
 import { ProductsView } from "./products-view";
 
 export default async function ProductsPage() {
-  const session = await getSession();
-  if (!session?.storeId) redirect("/login");
-  const initial = await listProductsForStore(session.storeId, {
+  const access = await requirePageActiveStore("/products");
+  const initial = await listProductsForStore(access.store.id, {
     page: 1,
     limit: 20,
   });

@@ -1,5 +1,5 @@
-import { notFound, redirect } from "next/navigation";
-import { getSession } from "@/lib/auth/session";
+import { notFound } from "next/navigation";
+import { requirePageActiveStore } from "@/lib/auth/guards";
 import { getOrderForStore, getShippingProvidersForStore } from "@/lib/server/orders";
 import { OrderDetailView } from "./order-detail-view";
 
@@ -8,12 +8,12 @@ export default async function OrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
-  if (!session?.storeId) redirect("/login");
+  const { id } = await params;
+  const access = await requirePageActiveStore(`/orders/${id}`);
 
   const [detail, providers] = await Promise.all([
-    getOrderForStore(session.storeId, id),
-    getShippingProvidersForStore(session.storeId),
+    getOrderForStore(access.store.id, id),
+    getShippingProvidersForStore(access.store.id),
   ]);
 
   if (!detail) notFound();

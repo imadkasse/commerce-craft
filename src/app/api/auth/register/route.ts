@@ -1,71 +1,97 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { users, stores, teamMembers } from "@/lib/db/schema";
-import { hashPassword } from "@/lib/auth/password";
 import { signToken } from "@/lib/auth/jwt";
+import {
+  createCredentialUser,
+  provisionDefaultStore,
+} from "@/lib/auth/provisioning";
 import { COOKIE_NAME } from "@/lib/auth/session";
-import { eq } from "drizzle-orm";
 
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
+const DUPLICATE_REGISTRATION_ERROR =
+  "Unable to register with the provided details";
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  const visited = new Set<object>();
+  let current = error;
+
+  while (typeof current === "object" && current !== null) {
+    if (visited.has(current)) return false;
+    visited.add(current);
+
+    const candidate = current as { cause?: unknown; code?: unknown };
+    if (candidate.code === "23505") return true;
+    current = candidate.cause;
+  }
+
+  return false;
+}
+
+async function provisionStoreWithRetry(userId: string) {
+  try {
+    return await provisionDefaultStore(userId);
+  } catch {
+    // Provisioning is idempotent. One retry safely handles an ambiguous commit
+    // without risking a second default store or membership.
+    return provisionDefaultStore(userId);
+  }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { name, email, password } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
-    if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
+    if (!email || typeof email !== "string") {
+      return NextResponse.json(
+        { error: "Valid email is required" },
+        { status: 400 },
+      );
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return NextResponse.json(
+        { error: "Valid email is required" },
+        { status: 400 },
+      );
     }
     if (!password || typeof password !== "string" || password.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters" },
+        { status: 400 },
+      );
     }
 
-    const existingUser = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
-    if (existingUser.length > 0) {
-      return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
-    }
-
-    const passwordHash = await hashPassword(password);
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        email: email.toLowerCase(),
-        passwordHash,
+    let newUser;
+    try {
+      ({ user: newUser } = await createCredentialUser({
+        email: normalizedEmail,
         name: name.trim(),
-        role: "ADMIN",
-      })
-      .returning();
+        password,
+      }));
+    } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        return NextResponse.json(
+          { error: DUPLICATE_REGISTRATION_ERROR },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
 
-    const storeSlug = generateSlug(name) + "-" + Date.now().toString(36);
-    const [newStore] = await db
-      .insert(stores)
-      .values({
-        name: name.trim() + "'s Store",
-        slug: storeSlug,
-        ownerId: newUser.id,
-      })
-      .returning();
+    // Registration must never accept or mint a privileged role, even if the
+    // service contract is accidentally weakened later.
+    if (newUser.role !== "ADMIN") {
+      throw new Error("Registration created a non-ADMIN user");
+    }
 
-    await db.insert(teamMembers).values({
-      userId: newUser.id,
-      storeId: newStore.id,
-      role: "ADMIN",
-    });
+    const { store: newStore } = await provisionStoreWithRetry(newUser.id);
 
     const token = signToken({
       userId: newUser.id,
       email: newUser.email,
-      role: newUser.role as "SUPERADMIN" | "ADMIN",
+      role: newUser.role,
       storeId: newStore.id,
     });
 
@@ -92,8 +118,10 @@ export async function POST(request: Request) {
     });
 
     return response;
-  } catch (error) {
-    console.error("Register error:", error);
+  } catch {
+    // Errors from database drivers may contain query parameters. Do not log or
+    // return those details from this public credential endpoint.
+    console.error("Register error: registration could not be completed");
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

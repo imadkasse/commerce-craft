@@ -1,20 +1,88 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { users, stores, teamMembers } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
-import { hashPassword } from "@/lib/auth/password";
+import { users, teamMembers } from "@/lib/db/schema";
+import {
+  ForbiddenError,
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
+import { createCredentialUser } from "@/lib/auth/provisioning";
 import { eq, and } from "drizzle-orm";
+
+type TeamRole = "SUPERADMIN" | "ADMIN";
+
+const TEMPORARY_INVITE_PASSWORD = "ChangeMe123!";
+
+class InviteProvisioningError extends Error {
+  constructor() {
+    super("Unable to provision invited user");
+    this.name = "InviteProvisioningError";
+  }
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  const visited = new Set<object>();
+  let current = error;
+
+  while (typeof current === "object" && current !== null) {
+    if (visited.has(current)) return false;
+    visited.add(current);
+
+    const candidate = current as { cause?: unknown; code?: unknown };
+    if (candidate.code === "23505") return true;
+    current = candidate.cause;
+  }
+
+  return false;
+}
+
+function getTeamRole(role: unknown): TeamRole | null {
+  if (role === undefined || role === null || role === "") return "ADMIN";
+  if (role === "ADMIN" || role === "SUPERADMIN") return role;
+  return null;
+}
+
+async function findUserByEmail(email: string) {
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+  return user;
+}
+
+async function findOrCreateInvitee(email: string, name: string) {
+  const existingUser = await findUserByEmail(email);
+  if (existingUser) return existingUser;
+
+  try {
+    const { user } = await createCredentialUser({
+      email,
+      name,
+      password: TEMPORARY_INVITE_PASSWORD,
+    });
+    return user;
+  } catch (error) {
+    if (isUniqueConstraintViolation(error)) {
+      // A concurrent invite may have committed the same normalized email while
+      // this request was provisioning. Reuse that user rather than generating
+      // another credential or replacing its password.
+      const concurrentUser = await findUserByEmail(email);
+      if (concurrentUser) return concurrentUser;
+    }
+
+    // Database-driver errors can include query parameters. Do not retain the
+    // original error here because credential parameters can contain a digest.
+    throw new InviteProvisioningError();
+  }
+}
+
+function duplicateMemberResponse() {
+  return NextResponse.json(
+    { error: "User is already a team member" },
+    { status: 409 },
+  );
+}
 
 export async function GET(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    if (!payload.storeId) {
-      return NextResponse.json({ members: [] });
-    }
+    const access = await requireActiveStore(request);
 
     const members = await db
       .select({
@@ -28,70 +96,64 @@ export async function GET(request: Request) {
       })
       .from(teamMembers)
       .innerJoin(users, eq(teamMembers.userId, users.id))
-      .where(eq(teamMembers.storeId, payload.storeId));
+      .where(eq(teamMembers.storeId, access.store.id));
 
     return NextResponse.json({ members });
   } catch (error) {
-    console.error("Team GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const access = await requireActiveStore(request);
+    if (access.auth.user.role !== "SUPERADMIN" && !access.isOwner) {
+      throw new ForbiddenError(
+        "Only the store owner or a super admin can invite team members",
+      );
     }
 
-    if (!payload.storeId) {
-      return NextResponse.json({ error: "No store associated with your account" }, { status: 400 });
-    }
-
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     const { email, name, role } = body;
 
-    if (!email || !name) {
+    if (
+      typeof email !== "string" ||
+      email.trim().length === 0 ||
+      typeof name !== "string" ||
+      name.trim().length === 0
+    ) {
       return NextResponse.json({ error: "Email and name are required" }, { status: 400 });
     }
 
-    let targetUser = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
-
-    if (targetUser.length === 0) {
-      const tempPassword = await hashPassword("ChangeMe123!");
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          email: email.toLowerCase(),
-          passwordHash: tempPassword,
-          name: name.trim(),
-          role: role || "ADMIN",
-        })
-        .returning();
-      targetUser = [newUser];
+    const memberRole = getTeamRole(role);
+    if (!memberRole) {
+      return NextResponse.json({ error: "Invalid team role" }, { status: 400 });
     }
-
-    const user = targetUser[0];
-
-    const existingMember = await db
-      .select()
-      .from(teamMembers)
-      .where(
-        and(eq(teamMembers.userId, user.id), eq(teamMembers.storeId, payload.storeId))
+    if (
+      memberRole === "SUPERADMIN" &&
+      access.auth.user.role !== "SUPERADMIN"
+    ) {
+      throw new ForbiddenError(
+        "Only a super admin can grant the SUPERADMIN role",
       );
-
-    if (existingMember.length > 0) {
-      return NextResponse.json({ error: "User is already a team member" }, { status: 409 });
     }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await findOrCreateInvitee(normalizedEmail, name.trim());
 
     const [newMember] = await db
       .insert(teamMembers)
       .values({
         userId: user.id,
-        storeId: payload.storeId,
-        role: role || "ADMIN",
+        storeId: access.store.id,
+        role: memberRole,
+      })
+      .onConflictDoNothing({
+        target: [teamMembers.userId, teamMembers.storeId],
       })
       .returning();
+
+    if (!newMember) return duplicateMemberResponse();
 
     return NextResponse.json({
       member: {
@@ -104,7 +166,12 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Team POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (error instanceof InviteProvisioningError) {
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500 },
+      );
+    }
+    return routeAuthErrorResponse(error);
   }
 }

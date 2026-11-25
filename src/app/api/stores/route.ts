@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { stores, teamMembers, activityLogs } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import { requireAuth, routeAuthErrorResponse } from "@/lib/auth/guards";
 import { desc, eq } from "drizzle-orm";
-import type { JWTPayload } from "@/lib/auth/jwt";
 import type { StoreTheme } from "@/lib/store-theme";
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -29,18 +28,15 @@ async function resolveUniqueSlug(base: string): Promise<string> {
 
 export async function GET(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
 
-    if (payload.role === "SUPERADMIN") {
+    if (auth.user.role === "SUPERADMIN") {
       const allStores = await db.select().from(stores).orderBy(desc(stores.createdAt));
       return NextResponse.json({
         stores: allStores.map((store) => ({
           ...store,
           role: "SUPERADMIN",
-          isOwner: store.ownerId === payload.userId,
+          isOwner: store.ownerId === auth.user.id,
         })),
       });
     }
@@ -49,28 +45,24 @@ export async function GET(request: Request) {
       .select({ store: stores, role: teamMembers.role })
       .from(teamMembers)
       .innerJoin(stores, eq(stores.id, teamMembers.storeId))
-      .where(eq(teamMembers.userId, payload.userId))
+      .where(eq(teamMembers.userId, auth.user.id))
       .orderBy(desc(stores.createdAt));
 
     return NextResponse.json({
       stores: rows.map(({ store, role }) => ({
         ...store,
         role,
-        isOwner: store.ownerId === payload.userId,
+        isOwner: store.ownerId === auth.user.id,
       })),
     });
   } catch (error) {
-    console.error("Stores GET error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth(request);
 
     const body = await request.json();
     const { name, slug, description, logoUrl, theme } = body;
@@ -104,18 +96,18 @@ export async function POST(request: Request) {
         description: description !== undefined ? description : null,
         logoUrl: logoUrl !== undefined ? logoUrl : null,
         theme: theme !== undefined ? (theme as Partial<StoreTheme>) : {},
-        ownerId: payload.userId,
+        ownerId: auth.user.id,
       })
       .returning();
 
     await db.insert(teamMembers).values({
-      userId: payload.userId,
+      userId: auth.user.id,
       storeId: newStore.id,
-      role: payload.role,
+      role: auth.user.role,
     });
 
     await db.insert(activityLogs).values({
-      userId: payload.userId,
+      userId: auth.user.id,
       storeId: newStore.id,
       action: "store.created",
       details: { name: newStore.name },
@@ -123,7 +115,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ store: newStore }, { status: 201 });
   } catch (error) {
-    console.error("Stores POST error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return routeAuthErrorResponse(error);
   }
 }

@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "accounts_provider_account_idx" ON "accounts" USING btree ("provider_id","account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "accounts_credential_user_idx" ON "accounts" USING btree ("user_id") WHERE "accounts"."provider_id" = 'credential';

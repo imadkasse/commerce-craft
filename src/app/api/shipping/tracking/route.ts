@@ -1,17 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { orders, shippingConfig } from "@/lib/db/schema";
-import { getTokenFromRequest } from "@/lib/auth/session";
+import {
+  requireActiveStore,
+  routeAuthErrorResponse,
+} from "@/lib/auth/guards";
 import { eq, and } from "drizzle-orm";
 import { getProvider } from "@/lib/services/shipping";
 
 export async function GET(request: Request) {
+  let access: Awaited<ReturnType<typeof requireActiveStore>>;
   try {
-    const payload = getTokenFromRequest(request);
-    if (!payload?.storeId) {
-      return NextResponse.json({ error: "No store" }, { status: 401 });
-    }
+    access = await requireActiveStore(request);
+  } catch (error) {
+    return routeAuthErrorResponse(error);
+  }
 
+  try {
     const url = new URL(request.url);
     const orderId = url.searchParams.get("orderId");
     const trackingCode = url.searchParams.get("trackingCode");
@@ -25,7 +30,7 @@ export async function GET(request: Request) {
       const [order] = await db
         .select()
         .from(orders)
-        .where(and(eq(orders.id, orderId), eq(orders.storeId, payload.storeId)));
+        .where(and(eq(orders.id, orderId), eq(orders.storeId, access.store.id)));
 
       if (!order) {
         return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -59,7 +64,7 @@ export async function GET(request: Request) {
     const [config] = await db
       .select()
       .from(shippingConfig)
-      .where(eq(shippingConfig.storeId, payload.storeId));
+      .where(eq(shippingConfig.storeId, access.store.id));
 
     const providerConfig = config?.providers?.[actualProvider] || {};
 
